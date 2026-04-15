@@ -14,7 +14,7 @@ import {
   isDemoMode,
 } from "@/lib/demo";
 import { SpendLeadsChart, type ChartPoint } from "@/components/charts/SpendLeadsChart";
-import { AnalyzeButton } from "@/components/AnalyzeButton";
+import { ClientAnalysisPanel } from "@/components/ClientAnalysisPanel";
 import { formatCurrency } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -148,7 +148,7 @@ export default async function ClientDetailPage({
         <h2 className="text-sm font-medium text-slate-700">
           AI analysis & recommendations
         </h2>
-        <AnalyzeButton clientId={client.id} window="7d" />
+        <ClientAnalysisPanel clientId={client.id} initialWindow="7d" />
       </section>
     </div>
   );

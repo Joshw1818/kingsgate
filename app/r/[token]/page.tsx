@@ -7,9 +7,11 @@ import { aggregateKpis, type KpiAggregate } from "@/lib/kpis";
 import {
   DEMO_AI_SUMMARY,
   DEMO_CLIENTS,
+  DEMO_DEEP_ANALYSIS,
   DEMO_KPIS,
   isDemoMode,
 } from "@/lib/demo";
+import type { ClientNarrative } from "@/lib/ai/schema";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +29,7 @@ interface ReportPayload {
     leads: number;
     bookings: number;
   }>;
+  client_narrative?: ClientNarrative;
 }
 
 export default async function PublicReportPage({
@@ -61,6 +64,7 @@ export default async function PublicReportPage({
         leads: Number(k.leads),
         bookings: Number(k.bookings),
       })),
+      client_narrative: DEMO_DEEP_ANALYSIS.client_narrative,
     };
     report = {
       id: "demo-report",
@@ -144,15 +148,19 @@ export default async function PublicReportPage({
           <SpendLeadsChart data={chartData} />
         </section>
 
-        {report.ai_summary_md && (
-          <section className="space-y-2">
-            <h2 className="text-sm font-medium text-slate-700">
-              Analysis & recommendations
-            </h2>
-            <div className="bg-white border border-slate-200 rounded-lg p-6 whitespace-pre-wrap text-sm leading-relaxed">
-              {report.ai_summary_md}
-            </div>
-          </section>
+        {payload.client_narrative ? (
+          <ClientNarrativeSection narrative={payload.client_narrative} />
+        ) : (
+          report.ai_summary_md && (
+            <section className="space-y-2">
+              <h2 className="text-sm font-medium text-slate-700">
+                Analysis & recommendations
+              </h2>
+              <div className="bg-white border border-slate-200 rounded-lg p-6 whitespace-pre-wrap text-sm leading-relaxed">
+                {report.ai_summary_md}
+              </div>
+            </section>
+          )
         )}
 
         <footer className="text-center text-xs text-slate-400 pt-4">
@@ -160,5 +168,73 @@ export default async function PublicReportPage({
         </footer>
       </div>
     </div>
+  );
+}
+
+function ClientNarrativeSection({
+  narrative,
+}: {
+  narrative: ClientNarrative;
+}) {
+  return (
+    <section className="space-y-4">
+      <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-5">
+        <div>
+          <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+            This week's summary
+          </div>
+          <p className="text-base text-slate-800 leading-relaxed mt-1">
+            {narrative.summary}
+          </p>
+        </div>
+
+        {narrative.wins.length > 0 && (
+          <div>
+            <div className="text-[11px] font-semibold uppercase tracking-wide text-severity-ok">
+              Wins
+            </div>
+            <ul className="mt-2 space-y-1.5">
+              {narrative.wins.map((w, i) => (
+                <li key={i} className="flex gap-2 text-sm text-slate-700">
+                  <span className="text-severity-ok">✓</span>
+                  <span>{w}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {narrative.focus_areas.length > 0 && (
+          <div>
+            <div className="text-[11px] font-semibold uppercase tracking-wide text-severity-medium">
+              Focus areas
+            </div>
+            <ul className="mt-2 space-y-1.5">
+              {narrative.focus_areas.map((f, i) => (
+                <li key={i} className="flex gap-2 text-sm text-slate-700">
+                  <span className="text-severity-medium">→</span>
+                  <span>{f}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {narrative.next_steps.length > 0 && (
+          <div>
+            <div className="text-[11px] font-semibold uppercase tracking-wide text-brand-accent">
+              What we're doing about it
+            </div>
+            <ol className="mt-2 space-y-1.5 list-decimal list-inside">
+              {narrative.next_steps.map((n, i) => (
+                <li key={i} className="text-sm text-slate-700">
+                  {n}
+                </li>
+              ))}
+            </ol>
+          </div>
+        )}
+      </div>
+    </section>
   );
 }

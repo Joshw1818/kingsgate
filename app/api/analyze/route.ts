@@ -2,9 +2,15 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { aggregateKpis, dateNDaysAgo, windowDays } from "@/lib/kpis";
-import { runAnalysis } from "@/lib/anthropic";
-import type { Client, DailyKpi, Flag, ReportWindow } from "@/lib/supabase/types";
-import { DEMO_AI_SUMMARY, isDemoMode } from "@/lib/demo";
+import { runDeepAnalysis } from "@/lib/anthropic";
+import { DeepAnalysisSchema, type DeepAnalysis } from "@/lib/ai/schema";
+import type {
+  Client,
+  DailyKpi,
+  Flag,
+  ReportWindow,
+} from "@/lib/supabase/types";
+import { DEMO_AD_INSIGHTS, DEMO_DEEP_ANALYSIS, isDemoMode } from "@/lib/demo";
 
 const BodySchema = z.object({
   client_id: z.string(),
@@ -17,18 +23,17 @@ export async function POST(request: Request) {
   const body = BodySchema.parse(await request.json());
   const { client_id, window } = body;
 
-  // Demo mode — return canned markdown, no auth, no Claude call.
+  // ----- Demo mode: canned structured analysis --------------------
   if (isDemoMode()) {
-    // Small delay so the "Analyzing…" state is visible.
-    await new Promise((r) => setTimeout(r, 600));
+    await new Promise((r) => setTimeout(r, 700)); // simulate thinking
     return NextResponse.json({
-      markdown: DEMO_AI_SUMMARY(),
+      analysis: DEMO_DEEP_ANALYSIS,
       cached: false,
       window: window as ReportWindow,
     });
   }
 
-  // Auth — only signed-in agency users can call this.
+  // ----- Live mode: real data + Claude deep analysis --------------
   const supabase = await createSupabaseServerClient();
   const {
     data: { user },
@@ -37,19 +42,26 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const [clientRes, kpisRes, flagsRes] = await Promise.all([
+  const days = windowDays(window);
+  const [clientRes, kpisRes, flagsRes, adsRes] = await Promise.all([
     supabase.from("clients").select("*").eq("id", client_id).single(),
     supabase
       .from("daily_kpis")
       .select("*")
       .eq("client_id", client_id)
-      .gte("date", dateNDaysAgo(windowDays(window)))
+      .gte("date", dateNDaysAgo(days * 2)) // pull baseline too
       .order("date"),
     supabase
       .from("flags")
       .select("*")
       .eq("client_id", client_id)
       .is("resolved_at", null),
+    supabase
+      .from("fb_ad_insights_daily")
+      .select("*")
+      .eq("client_id", client_id)
+      .gte("date", dateNDaysAgo(days))
+      .order("spend", { ascending: false }),
   ]);
 
   if (!clientRes.data) {
@@ -58,8 +70,36 @@ export async function POST(request: Request) {
   const client = clientRes.data as Client;
   const kpis = (kpisRes.data ?? []) as DailyKpi[];
   const flags = (flagsRes.data ?? []) as Flag[];
+  const ads = (adsRes.data ?? []) as Array<Record<string, unknown>>;
 
-  const agg = aggregateKpis(kpis);
+  // Aggregate ads by ad_id so we send one row per ad, not per day.
+  const adsById = new Map<string, Record<string, unknown>>();
+  for (const row of ads) {
+    const id = String(row.ad_id);
+    const existing = adsById.get(id);
+    if (!existing) {
+      adsById.set(id, { ...row });
+    } else {
+      existing.spend = Number(existing.spend ?? 0) + Number(row.spend ?? 0);
+      existing.impressions =
+        Number(existing.impressions ?? 0) + Number(row.impressions ?? 0);
+      existing.clicks = Number(existing.clicks ?? 0) + Number(row.clicks ?? 0);
+    }
+  }
+  const adSummary = Array.from(adsById.values())
+    .sort((a, b) => Number(b.spend ?? 0) - Number(a.spend ?? 0))
+    .slice(0, 10);
+
+  const topImageUrls = adSummary
+    .slice(0, 5)
+    .map((a) => a.thumbnail_url as string | undefined)
+    .filter((u): u is string => typeof u === "string" && u.length > 0);
+
+  const windowKpis = kpis.filter((r) => r.date >= dateNDaysAgo(days));
+  const baselineKpis = kpis.filter((r) => r.date < dateNDaysAgo(days));
+
+  const agg = aggregateKpis(windowKpis);
+  const baseline = aggregateKpis(baselineKpis);
 
   const payload = {
     client: {
@@ -70,7 +110,8 @@ export async function POST(request: Request) {
     },
     window,
     totals: agg,
-    daily: kpis.map((r) => ({
+    baseline_prior_window: baseline,
+    daily: windowKpis.map((r) => ({
       date: r.date,
       spend: Number(r.spend),
       leads: Number(r.leads),
@@ -80,6 +121,7 @@ export async function POST(request: Request) {
       cost_per_lead: r.cost_per_lead,
       cost_per_booking: r.cost_per_booking,
     })),
+    top_ads_by_spend: adSummary,
     active_flags: flags.map((f) => ({
       type: f.flag_type,
       severity: f.severity,
@@ -87,7 +129,9 @@ export async function POST(request: Request) {
     })),
   };
 
-  const { markdown, cached } = await runAnalysis(payload, {
+  const { analysis, cached, usage } = await runDeepAnalysis({
+    payload,
+    creativeImageUrls: topImageUrls,
     async getCached(key) {
       const { data } = await supabase
         .from("ai_cache")
@@ -96,18 +140,28 @@ export async function POST(request: Request) {
         .single();
       if (!data) return null;
       const ageHours =
-        (Date.now() - new Date(data.created_at).getTime()) / (1000 * 60 * 60);
+        (Date.now() - new Date(data.created_at).getTime()) /
+        (1000 * 60 * 60);
       if (ageHours > CACHE_TTL_HOURS) return null;
-      return data.response;
+      try {
+        return DeepAnalysisSchema.parse(JSON.parse(data.response));
+      } catch {
+        return null;
+      }
     },
     async setCached(key, value) {
       await supabase.from("ai_cache").upsert({
         cache_key: key,
-        response: value,
+        response: JSON.stringify(value),
         created_at: new Date().toISOString(),
       });
     },
   });
 
-  return NextResponse.json({ markdown, cached, window: window as ReportWindow });
+  return NextResponse.json({
+    analysis,
+    cached,
+    usage,
+    window: window as ReportWindow,
+  });
 }

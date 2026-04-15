@@ -8,6 +8,7 @@ import type {
   Flag,
   Report,
 } from "./supabase/types";
+import type { DeepAnalysis } from "./ai/schema";
 
 export function isDemoMode(): boolean {
   if (process.env.NEXT_PUBLIC_DEMO_MODE === "true") return true;
@@ -317,6 +318,278 @@ export const DEMO_REPORTS: Report[] = [
     ai_summary_md: DEMO_AI_SUMMARY(),
   },
 ];
+
+// ------------------------------------------------------------------
+// Fake ad-level insights — used in demo mode so the "Top creatives"
+// section of the deep analysis has something to render.
+// ------------------------------------------------------------------
+export interface DemoAdInsight {
+  ad_id: string;
+  ad_name: string;
+  headline: string;
+  body_text: string;
+  thumbnail_url: string;
+  spend: number;
+  impressions: number;
+  clicks: number;
+  ctr: number;
+  frequency: number;
+  cost_per_lead: number;
+}
+
+export const DEMO_AD_INSIGHTS: Record<string, DemoAdInsight[]> = {
+  "demo-metro-medspa": [
+    {
+      ad_id: "ad_a42",
+      ad_name: "Laser Facial - Stock Photo v3",
+      headline: "Try our new laser facial",
+      body_text:
+        "Book your first consultation this week. Limited appointments available.",
+      thumbnail_url:
+        "https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=200",
+      spend: 820,
+      impressions: 74500,
+      clicks: 820,
+      ctr: 0.011,
+      frequency: 3.1,
+      cost_per_lead: 41,
+    },
+    {
+      ad_id: "ad_b17",
+      ad_name: "Botox Starter Offer",
+      headline: "Look younger in 20 minutes",
+      body_text: "First-time clients save 20%. Book a free consult today.",
+      thumbnail_url:
+        "https://images.unsplash.com/photo-1570172619644-dfd03ed5d881?w=200",
+      spend: 520,
+      impressions: 31000,
+      clicks: 620,
+      ctr: 0.02,
+      frequency: 2.2,
+      cost_per_lead: 26,
+    },
+    {
+      ad_id: "ad_c88",
+      ad_name: "Glow Package - Carousel",
+      headline: "Meet the Glow Package",
+      body_text: "Facial + HydraDerm + peel, bundled for $299.",
+      thumbnail_url:
+        "https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=200",
+      spend: 280,
+      impressions: 19500,
+      clicks: 390,
+      ctr: 0.02,
+      frequency: 1.8,
+      cost_per_lead: 28,
+    },
+  ],
+  "demo-apex-fitness": [
+    {
+      ad_id: "ad_fit_01",
+      ad_name: "6-Week Transformation",
+      headline: "Drop 10 lbs in 6 weeks",
+      body_text: "Small-group personal training. First session free.",
+      thumbnail_url:
+        "https://images.unsplash.com/photo-1574680096145-d05b474e2155?w=200",
+      spend: 280,
+      impressions: 26000,
+      clicks: 320,
+      ctr: 0.012,
+      frequency: 2.8,
+      cost_per_lead: 93,
+    },
+    {
+      ad_id: "ad_fit_02",
+      ad_name: "Old Member Reactivation",
+      headline: "We miss you — come back",
+      body_text: "Former members: first month free.",
+      thumbnail_url:
+        "https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=200",
+      spend: 132,
+      impressions: 14000,
+      clicks: 150,
+      ctr: 0.011,
+      frequency: 2.5,
+      cost_per_lead: 132,
+    },
+  ],
+};
+
+// ------------------------------------------------------------------
+// Fake structured deep analysis for Metro Med Spa (the headline demo
+// client). Must match the Zod DeepAnalysisSchema exactly.
+// ------------------------------------------------------------------
+export const DEMO_DEEP_ANALYSIS: DeepAnalysis = {
+  headline_diagnosis:
+    "CPB is $214.80 this week — 43% over the $150 target — driven by a booking-rate collapse from 28% to 18%, not lead volume.",
+  severity: "critical",
+  root_causes: [
+    {
+      lever: "funnel",
+      hypothesis:
+        "GHL booking workflow is leaking between lead capture and confirmed appointment — lead count is healthy but booking conversion has fallen sharply.",
+      evidence: [
+        {
+          metric: "booking_rate_7d",
+          value: 0.18,
+          context: "baseline 0.28 over the prior 30 days",
+        },
+        {
+          metric: "cost_per_booking_7d",
+          value: 214.8,
+          context: "target 150",
+        },
+        {
+          metric: "lead_count_7d",
+          value: 58,
+          context: "in line with 30-day average of 57",
+        },
+      ],
+      confidence: "high",
+    },
+    {
+      lever: "creative",
+      hypothesis:
+        "Top-spending creative ad_a42 is approaching fatigue and the image (stock photo) is underperforming the rest of the account on CTR.",
+      evidence: [
+        {
+          metric: "ad_a42_frequency",
+          value: 3.1,
+          context: "threshold 3.5, account avg 2.2",
+        },
+        {
+          metric: "ad_a42_ctr",
+          value: 0.011,
+          context: "account average 0.018",
+        },
+      ],
+      confidence: "medium",
+    },
+    {
+      lever: "offer",
+      hypothesis:
+        "A competitor launched a $49 first-visit offer last week; the current 'try our new laser facial' headline has no price anchor and is losing relative appeal.",
+      evidence: [
+        {
+          metric: "cpl_3d",
+          value: 34,
+          context: "target 30, trending up over last 5 days",
+        },
+      ],
+      confidence: "low",
+    },
+  ],
+  actions: [
+    {
+      priority: "P0",
+      verb: "Audit",
+      description:
+        "Walk the GHL booking workflow end-to-end today — check SMS/email automations, calendar availability, confirmation step, and lead tag routing.",
+      expected_impact:
+        "Recover booking rate to 25%+ within 72 hours if the leak is automation-related.",
+    },
+    {
+      priority: "P0",
+      verb: "Pause",
+      description:
+        "Pause ad_a42 once frequency crosses 3.5 or reallocate its $820 weekly budget to ad_b17 which has a 20% higher CTR.",
+      expected_impact:
+        "Protect CPL from drifting another 10-15% while the booking issue is being fixed.",
+      affected_ad_ids: ["ad_a42"],
+    },
+    {
+      priority: "P1",
+      verb: "Refresh",
+      description:
+        "Duplicate ad_a42 with a new hook + UGC-style image (replace the stock photo) and launch at $50/day to test.",
+      expected_impact:
+        "Delay full creative fatigue by 1-2 weeks and unlock a new higher-CTR variant.",
+      affected_ad_ids: ["ad_a42"],
+    },
+    {
+      priority: "P1",
+      verb: "Test",
+      description:
+        "Launch a $49 first-visit offer variant to counter the competitor's recent launch. Run against current control for 7 days.",
+      expected_impact:
+        "Potentially reclaim 10-15% of lost booking rate if offer is the real driver.",
+    },
+    {
+      priority: "P2",
+      verb: "Review",
+      description:
+        "Re-check all metrics in 72 hours; if booking rate hasn't recovered to 25%+, escalate to a funnel teardown with the client.",
+      expected_impact:
+        "Catch any second-order issue before it compounds into next week's numbers.",
+    },
+  ],
+  client_narrative: {
+    summary:
+      "Your ads are still bringing in plenty of leads this week, but fewer of those leads are making it to a booked appointment than usual. We've already spotted a likely reason and have a plan to fix it fast.",
+    wins: [
+      "Lead volume is strong — 58 new leads this week, in line with the past month.",
+      "One of your ads is still outperforming the rest of the account on engagement.",
+    ],
+    focus_areas: [
+      "Some leads are dropping off between showing interest and confirming their appointment — likely an issue in the follow-up automation.",
+      "Your top-performing ad is starting to be seen by the same people too often and needs a fresh look.",
+    ],
+    next_steps: [
+      "We're auditing your booking workflow end-to-end today.",
+      "We're refreshing the top-performing ad with a new image and hook this week.",
+      "We're testing a limited-time first-visit offer to reinforce demand.",
+    ],
+  },
+};
+
+// ------------------------------------------------------------------
+// Canned chat follow-ups. Keys are normalised (lowercase, trimmed,
+// stripped of punctuation). Matcher does a "contains" check so short
+// queries work even if you phrase them loosely.
+// ------------------------------------------------------------------
+interface ChatResponse {
+  keywords: string[];
+  response: string;
+}
+
+const DEMO_CHAT_RESPONSES: ChatResponse[] = [
+  {
+    keywords: ["why", "cpb", "cost per booking", "up"],
+    response:
+      "The spend per booking climbed because **booking rate collapsed from 28% to 18%** while lead volume held flat. You're not getting fewer leads — you're getting the same number but far fewer of them are turning into appointments.\n\nThat points straight at the funnel, not the ads. I'd start with the GHL workflow audit (P0 action) before touching anything in Ads Manager.",
+  },
+  {
+    keywords: ["which", "pause", "worst", "ad"],
+    response:
+      "**Pause `ad_a42` first.** It's eating $820/week (45% of spend) and its CTR at 1.1% is well below the 1.8% account average, while frequency has crept to 3.1.\n\nReallocate that budget to `ad_b17` — same audience, CTR of 2.0%, frequency still a safe 2.2. You'll likely recover 10-15% of your CPL immediately.",
+  },
+  {
+    keywords: ["budget", "increase", "raise", "more spend"],
+    response:
+      "I'd **not** increase budget yet. With booking rate down to 18%, every extra dollar is buying proportionally fewer appointments. Fix the funnel first — once booking rate is back above 25%, the current budget will hit its CPB target without any extra spend.\n\nIf the audit clears the funnel and the problem turns out to be genuine demand softening, then yes — scale `ad_b17` by 20% as the first test.",
+  },
+  {
+    keywords: ["creative", "image", "ad_a42", "a42"],
+    response:
+      "`ad_a42` uses a stock laser-facial photo that reads as generic in the IG feed. Its CTR is 1.1% vs 2.0% for `ad_b17` (which uses a candid first-person shot) — a 45% gap.\n\nThe P1 action is to duplicate `ad_a42` with a UGC-style image and a slightly punchier hook. Don't change the offer or audience yet — isolate the creative variable so you can attribute any lift cleanly.",
+  },
+  {
+    keywords: ["confidence", "sure", "certain"],
+    response:
+      "The funnel hypothesis is **high confidence** — the pattern (stable leads + dropping booking rate + rising CPB) almost always points at a broken automation or calendar issue.\n\nThe creative hypothesis is **medium** — fatigue is real but wouldn't alone cause a 10-point booking rate drop.\n\nThe offer hypothesis is **low** — I flagged it because a competitor launched a price promotion last week, but CPL is only up 13% which is within normal variance.",
+  },
+];
+
+export function getDemoChatResponse(question: string): string {
+  const normalised = question.toLowerCase().replace(/[^\w\s]/g, " ");
+  const scored = DEMO_CHAT_RESPONSES.map((r) => ({
+    response: r.response,
+    score: r.keywords.filter((k) => normalised.includes(k)).length,
+  }));
+  scored.sort((a, b) => b.score - a.score);
+  if (scored[0] && scored[0].score > 0) return scored[0].response;
+  return `This is demo mode, so I'm working from a fixed script. Try asking:\n\n- "Why is CPB up?"\n- "Which ad should I pause?"\n- "Should I increase budget?"\n- "What's wrong with the creative?"\n- "How confident are you?"`;
+}
 
 export function DEMO_AI_SUMMARY(): string {
   return `## Diagnosis
