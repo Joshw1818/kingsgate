@@ -6,6 +6,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { aggregateKpis, dateNDaysAgo, windowDays } from "@/lib/kpis";
 import { runAnalysis } from "@/lib/anthropic";
 import type { Client, DailyKpi, ReportWindow } from "@/lib/supabase/types";
+import { isDemoMode } from "@/lib/demo";
 
 const CACHE_TTL_HOURS = 6;
 
@@ -13,6 +14,13 @@ export async function generateReportAction(
   clientId: string,
   window: ReportWindow
 ): Promise<{ shareUrl: string }> {
+  // Demo mode — fake it: return a static share URL pointing at /r/demo
+  if (isDemoMode()) {
+    await new Promise((r) => setTimeout(r, 500));
+    const base = process.env.NEXT_PUBLIC_APP_URL ?? "";
+    return { shareUrl: `${base}/r/demo-${clientId}-${window}` };
+  }
+
   const supabase = await createSupabaseServerClient();
   const since = dateNDaysAgo(windowDays(window));
 

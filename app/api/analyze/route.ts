@@ -4,15 +4,30 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { aggregateKpis, dateNDaysAgo, windowDays } from "@/lib/kpis";
 import { runAnalysis } from "@/lib/anthropic";
 import type { Client, DailyKpi, Flag, ReportWindow } from "@/lib/supabase/types";
+import { DEMO_AI_SUMMARY, isDemoMode } from "@/lib/demo";
 
 const BodySchema = z.object({
-  client_id: z.string().uuid(),
+  client_id: z.string(),
   window: z.enum(["7d", "30d"]),
 });
 
 const CACHE_TTL_HOURS = 6;
 
 export async function POST(request: Request) {
+  const body = BodySchema.parse(await request.json());
+  const { client_id, window } = body;
+
+  // Demo mode — return canned markdown, no auth, no Claude call.
+  if (isDemoMode()) {
+    // Small delay so the "Analyzing…" state is visible.
+    await new Promise((r) => setTimeout(r, 600));
+    return NextResponse.json({
+      markdown: DEMO_AI_SUMMARY(),
+      cached: false,
+      window: window as ReportWindow,
+    });
+  }
+
   // Auth — only signed-in agency users can call this.
   const supabase = await createSupabaseServerClient();
   const {
@@ -21,9 +36,6 @@ export async function POST(request: Request) {
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-
-  const body = BodySchema.parse(await request.json());
-  const { client_id, window } = body;
 
   const [clientRes, kpisRes, flagsRes] = await Promise.all([
     supabase.from("clients").select("*").eq("id", client_id).single(),

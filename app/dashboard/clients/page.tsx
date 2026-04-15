@@ -1,20 +1,25 @@
 import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { Client } from "@/lib/supabase/types";
+import { DEMO_CLIENTS, isDemoMode } from "@/lib/demo";
+import { DemoBanner } from "@/components/DemoBanner";
 import { formatCurrency } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
 export default async function ClientsListPage() {
-  const supabase = await createSupabaseServerClient();
-  const { data } = await supabase
-    .from("clients")
-    .select("*")
-    .order("name");
-  const clients = (data ?? []) as Client[];
+  let clients: Client[];
+  if (isDemoMode()) {
+    clients = DEMO_CLIENTS;
+  } else {
+    const supabase = await createSupabaseServerClient();
+    const { data } = await supabase.from("clients").select("*").order("name");
+    clients = (data ?? []) as Client[];
+  }
 
   return (
     <div className="space-y-6">
+      <DemoBanner />
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold text-brand">Clients</h1>
         <Link

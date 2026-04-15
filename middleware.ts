@@ -1,8 +1,27 @@
-import { createServerClient } from "@supabase/ssr";
+import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+
+interface CookieToSet {
+  name: string;
+  value: string;
+  options?: CookieOptions;
+}
 
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request });
+
+  // Demo mode — no auth needed at all, just let everything through.
+  const demoMode =
+    process.env.NEXT_PUBLIC_DEMO_MODE === "true" ||
+    !process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (demoMode) {
+    if (request.nextUrl.pathname === "/login") {
+      const url = request.nextUrl.clone();
+      url.pathname = "/dashboard";
+      return NextResponse.redirect(url);
+    }
+    return response;
+  }
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -12,7 +31,7 @@ export async function middleware(request: NextRequest) {
         getAll() {
           return request.cookies.getAll();
         },
-        setAll(cookiesToSet) {
+        setAll(cookiesToSet: CookieToSet[]) {
           cookiesToSet.forEach(({ name, value }) =>
             request.cookies.set(name, value)
           );

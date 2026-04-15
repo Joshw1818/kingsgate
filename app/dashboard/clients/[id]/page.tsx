@@ -6,6 +6,13 @@ import { aggregateKpis, dateNDaysAgo } from "@/lib/kpis";
 import { SEVERITY_ORDER } from "@/lib/flags";
 import { KpiCards } from "@/components/KpiCards";
 import { FlagBadge } from "@/components/FlagBadge";
+import { DemoBanner } from "@/components/DemoBanner";
+import {
+  DEMO_CLIENTS,
+  DEMO_FLAGS,
+  DEMO_KPIS,
+  isDemoMode,
+} from "@/lib/demo";
 import { SpendLeadsChart, type ChartPoint } from "@/components/charts/SpendLeadsChart";
 import { AnalyzeButton } from "@/components/AnalyzeButton";
 import { formatCurrency } from "@/lib/utils";
@@ -18,31 +25,46 @@ export default async function ClientDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const supabase = await createSupabaseServerClient();
-
   const since = dateNDaysAgo(30);
 
-  const [clientRes, kpisRes, flagsRes] = await Promise.all([
-    supabase.from("clients").select("*").eq("id", id).single(),
-    supabase
-      .from("daily_kpis")
-      .select("*")
-      .eq("client_id", id)
-      .gte("date", since)
-      .order("date"),
-    supabase
-      .from("flags")
-      .select("*")
-      .eq("client_id", id)
-      .is("resolved_at", null),
-  ]);
+  let client: Client;
+  let kpis: DailyKpi[];
+  let flags: Flag[];
 
-  if (!clientRes.data) notFound();
-  const client = clientRes.data as Client;
-  const kpis = (kpisRes.data ?? []) as DailyKpi[];
-  const flags = ((flagsRes.data ?? []) as Flag[]).sort(
-    (a, b) => SEVERITY_ORDER[b.severity] - SEVERITY_ORDER[a.severity]
-  );
+  if (isDemoMode()) {
+    const found = DEMO_CLIENTS.find((c) => c.id === id);
+    if (!found) notFound();
+    client = found;
+    kpis = DEMO_KPIS.filter((k) => k.client_id === id).sort((a, b) =>
+      a.date.localeCompare(b.date)
+    );
+    flags = DEMO_FLAGS.filter((f) => f.client_id === id).sort(
+      (a, b) => SEVERITY_ORDER[b.severity] - SEVERITY_ORDER[a.severity]
+    );
+  } else {
+    const supabase = await createSupabaseServerClient();
+    const [clientRes, kpisRes, flagsRes] = await Promise.all([
+      supabase.from("clients").select("*").eq("id", id).single(),
+      supabase
+        .from("daily_kpis")
+        .select("*")
+        .eq("client_id", id)
+        .gte("date", since)
+        .order("date"),
+      supabase
+        .from("flags")
+        .select("*")
+        .eq("client_id", id)
+        .is("resolved_at", null),
+    ]);
+
+    if (!clientRes.data) notFound();
+    client = clientRes.data as Client;
+    kpis = (kpisRes.data ?? []) as DailyKpi[];
+    flags = ((flagsRes.data ?? []) as Flag[]).sort(
+      (a, b) => SEVERITY_ORDER[b.severity] - SEVERITY_ORDER[a.severity]
+    );
+  }
 
   const agg30 = aggregateKpis(kpis);
   const agg7 = aggregateKpis(kpis.filter((r) => r.date >= dateNDaysAgo(7)));
@@ -56,6 +78,7 @@ export default async function ClientDetailPage({
 
   return (
     <div className="space-y-8">
+      <DemoBanner />
       <div>
         <Link
           href="/dashboard"

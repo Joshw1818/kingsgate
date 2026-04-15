@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { isDemoMode } from "@/lib/demo";
 
 const ClientSchema = z.object({
   name: z.string().min(1),
@@ -21,6 +22,11 @@ function normalizeFbAccountId(raw: string): string {
 }
 
 export async function createClientAction(formData: FormData) {
+  if (isDemoMode()) {
+    // Can't write in demo mode — just bounce back to the list.
+    redirect("/dashboard/clients?demo=1");
+  }
+
   const parsed = ClientSchema.parse({
     name: formData.get("name"),
     fb_ad_account_id: formData.get("fb_ad_account_id"),

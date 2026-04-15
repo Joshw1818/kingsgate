@@ -5,23 +5,34 @@ import { aggregateKpis, dateNDaysAgo, healthScore } from "@/lib/kpis";
 import { SEVERITY_ORDER } from "@/lib/flags";
 import { KpiCards } from "@/components/KpiCards";
 import { FlagBadge, HealthDot } from "@/components/FlagBadge";
+import { DemoBanner } from "@/components/DemoBanner";
+import { isDemoMode, DEMO_CLIENTS, DEMO_KPIS, DEMO_FLAGS } from "@/lib/demo";
 import { formatCurrency, formatNumber } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
 export default async function DashboardOverviewPage() {
-  const supabase = await createSupabaseServerClient();
   const since = dateNDaysAgo(30);
 
-  const [clientsRes, kpisRes, flagsRes] = await Promise.all([
-    supabase.from("clients").select("*").eq("active", true).order("name"),
-    supabase.from("daily_kpis").select("*").gte("date", since),
-    supabase.from("flags").select("*").is("resolved_at", null),
-  ]);
+  let clients: Client[];
+  let kpis: DailyKpi[];
+  let flags: Flag[];
 
-  const clients = (clientsRes.data ?? []) as Client[];
-  const kpis = (kpisRes.data ?? []) as DailyKpi[];
-  const flags = (flagsRes.data ?? []) as Flag[];
+  if (isDemoMode()) {
+    clients = DEMO_CLIENTS;
+    kpis = DEMO_KPIS;
+    flags = DEMO_FLAGS;
+  } else {
+    const supabase = await createSupabaseServerClient();
+    const [clientsRes, kpisRes, flagsRes] = await Promise.all([
+      supabase.from("clients").select("*").eq("active", true).order("name"),
+      supabase.from("daily_kpis").select("*").gte("date", since),
+      supabase.from("flags").select("*").is("resolved_at", null),
+    ]);
+    clients = (clientsRes.data ?? []) as Client[];
+    kpis = (kpisRes.data ?? []) as DailyKpi[];
+    flags = (flagsRes.data ?? []) as Flag[];
+  }
 
   const kpisByClient = new Map<string, DailyKpi[]>();
   for (const row of kpis) {
@@ -62,6 +73,7 @@ export default async function DashboardOverviewPage() {
 
   return (
     <div className="space-y-8">
+      <DemoBanner />
       <div className="flex items-end justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-brand">Agency overview</h1>

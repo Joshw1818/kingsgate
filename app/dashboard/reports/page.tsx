@@ -2,28 +2,37 @@ import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { Client, Report } from "@/lib/supabase/types";
 import { ReportGenerator } from "@/components/ReportGenerator";
+import { DemoBanner } from "@/components/DemoBanner";
+import { DEMO_CLIENTS, DEMO_REPORTS, isDemoMode } from "@/lib/demo";
 
 export const dynamic = "force-dynamic";
 
 export default async function ReportsPage() {
-  const supabase = await createSupabaseServerClient();
+  let clients: Client[];
+  let reports: Report[];
 
-  const [clientsRes, reportsRes] = await Promise.all([
-    supabase.from("clients").select("*").eq("active", true).order("name"),
-    supabase
-      .from("reports")
-      .select("*")
-      .order("generated_at", { ascending: false })
-      .limit(50),
-  ]);
-
-  const clients = (clientsRes.data ?? []) as Client[];
-  const reports = (reportsRes.data ?? []) as Report[];
+  if (isDemoMode()) {
+    clients = DEMO_CLIENTS;
+    reports = DEMO_REPORTS;
+  } else {
+    const supabase = await createSupabaseServerClient();
+    const [clientsRes, reportsRes] = await Promise.all([
+      supabase.from("clients").select("*").eq("active", true).order("name"),
+      supabase
+        .from("reports")
+        .select("*")
+        .order("generated_at", { ascending: false })
+        .limit(50),
+    ]);
+    clients = (clientsRes.data ?? []) as Client[];
+    reports = (reportsRes.data ?? []) as Report[];
+  }
 
   const base = process.env.NEXT_PUBLIC_APP_URL ?? "";
 
   return (
     <div className="space-y-8">
+      <DemoBanner />
       <div>
         <h1 className="text-2xl font-semibold text-brand">Reports</h1>
         <p className="text-sm text-slate-500 mt-1">

@@ -26,6 +26,29 @@ analysis.
 - Anthropic SDK (`claude-sonnet-4-6`) with ephemeral prompt caching
 - Recharts
 
+## Demo mode (preview with zero setup)
+
+The dashboard ships with a **demo mode** that serves sample data — five
+fake clients, 30 days of realistic KPIs, active flags, and a canned AI
+analysis — so you can preview the UI without Supabase, Facebook, GHL, or
+Anthropic credentials.
+
+Demo mode is **auto-enabled** whenever `NEXT_PUBLIC_SUPABASE_URL` is not
+set, or explicitly with `NEXT_PUBLIC_DEMO_MODE=true`.
+
+### Deploy the demo to Vercel
+
+1. Push the branch (done).
+2. In Vercel: **Add New → Project → Import `joshw1818/kingsgate`**.
+3. Framework preset: **Next.js** (auto-detected).
+4. **Leave all environment variables blank** — demo mode will auto-engage.
+5. Click **Deploy**. In ~2 minutes you get a public URL.
+6. Open the URL → you're straight into the agency overview with sample
+   data. No login required.
+
+To flip to live data later, fill in the env vars from `.env.example` and
+redeploy.
+
 ## Local setup
 
 ```bash

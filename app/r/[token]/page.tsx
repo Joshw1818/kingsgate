@@ -3,7 +3,13 @@ import { createSupabaseServiceClient } from "@/lib/supabase/server";
 import type { Report } from "@/lib/supabase/types";
 import { formatCurrency, formatNumber, formatPercent } from "@/lib/utils";
 import { SpendLeadsChart, type ChartPoint } from "@/components/charts/SpendLeadsChart";
-import type { KpiAggregate } from "@/lib/kpis";
+import { aggregateKpis, type KpiAggregate } from "@/lib/kpis";
+import {
+  DEMO_AI_SUMMARY,
+  DEMO_CLIENTS,
+  DEMO_KPIS,
+  isDemoMode,
+} from "@/lib/demo";
 
 export const dynamic = "force-dynamic";
 
@@ -30,17 +36,53 @@ export default async function PublicReportPage({
 }) {
   const { token } = await params;
 
-  // Public view: use service role to bypass RLS, keyed ONLY on share_token.
-  const supabase = createSupabaseServiceClient();
-  const { data } = await supabase
-    .from("reports")
-    .select("*")
-    .eq("share_token", token)
-    .single();
+  let report: Report;
+  let payload: ReportPayload;
 
-  if (!data) notFound();
-  const report = data as Report;
-  const payload = report.payload as unknown as ReportPayload;
+  if (isDemoMode()) {
+    // Demo: ignore the token, show Metro Med Spa 7d report with real
+    // aggregated demo KPIs and the canned AI summary.
+    const client = DEMO_CLIENTS.find((c) => c.id === "demo-metro-medspa")!;
+    const kpis7 = DEMO_KPIS.filter(
+      (k) => k.client_id === client.id
+    ).slice(-7);
+    const totals = aggregateKpis(kpis7);
+    payload = {
+      client: {
+        id: client.id,
+        name: client.name,
+        target_cpl: client.target_cpl,
+        target_cost_per_booking: client.target_cost_per_booking,
+      },
+      totals,
+      daily: kpis7.map((k) => ({
+        date: k.date,
+        spend: Number(k.spend),
+        leads: Number(k.leads),
+        bookings: Number(k.bookings),
+      })),
+    };
+    report = {
+      id: "demo-report",
+      client_id: client.id,
+      window: "7d",
+      share_token: token,
+      generated_at: new Date().toISOString(),
+      payload: payload as unknown as Record<string, unknown>,
+      ai_summary_md: DEMO_AI_SUMMARY(),
+    };
+  } else {
+    // Public view: use service role to bypass RLS, keyed ONLY on share_token.
+    const supabase = createSupabaseServiceClient();
+    const { data } = await supabase
+      .from("reports")
+      .select("*")
+      .eq("share_token", token)
+      .single();
+    if (!data) notFound();
+    report = data as Report;
+    payload = report.payload as unknown as ReportPayload;
+  }
 
   const chartData: ChartPoint[] = payload.daily.map((d) => ({
     date: d.date.slice(5),
