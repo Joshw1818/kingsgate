@@ -69,7 +69,7 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    // Protect dashboard + login; skip static, api, and public report routes.
-    "/((?!_next/static|_next/image|favicon.ico|api|r/|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    // Protect dashboard + login; skip static, api, public report routes, and /lp/*.
+    "/((?!_next/static|_next/image|favicon.ico|api|r/|lp/|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };
