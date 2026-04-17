@@ -10,3 +10,4 @@ out
 .supabase
 coverage
 .turbo
+*.tsbuildinfo
