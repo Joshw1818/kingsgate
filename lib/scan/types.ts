@@ -3,6 +3,10 @@
 // component can import them.
 
 import type { FlagResult } from "@/lib/killFlag";
+import type { LedgerClient, TrackerComputed } from "@/lib/scan/billing";
+
+/** A ledger client plus its computed lifecycle/billing state (Pillar 2.6). */
+export type ClientTrackerRow = LedgerClient & { computed: TrackerComputed };
 
 /** Rolling windows, in days, that the scan can be viewed over. Always includes today. */
 export type ScanWindow = 1 | 3 | 5 | 7 | 30;

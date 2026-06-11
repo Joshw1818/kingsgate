@@ -9,6 +9,8 @@ import {
   type ClientCost,
   type AgencyMetrics,
 } from "@/lib/scan/types";
+import { MC_CSS } from "@/lib/scan/theme";
+import { MissionControlNav } from "@/components/mission-control/Nav";
 
 // [chip label, chip class, left-bar class] per flag — mirrors the mockup.
 const STYLE: Record<Flag, [string, string, string]> = {
@@ -139,16 +141,14 @@ export function MorningScanClient({ scansByWindow, costsByWindow, agency }: Prop
   );
 
   return (
-    <div className="scan-root">
-      <style>{SCAN_CSS}</style>
+    <div className="mc-root">
+      <style>{MC_CSS}</style>
       <div className="relative max-w-6xl mx-auto px-5 py-8">
+        <MissionControlNav />
         {/* Header */}
         <header className="flex flex-wrap items-end justify-between gap-4 mb-5">
           <div>
-            <span className="mono text-[11px] font-bold tracking-[.2em] neon">
-              KINGSGATE · MISSION CONTROL
-            </span>
-            <h1 className="text-[26px] font-extrabold tracking-tight leading-none mt-1">
+            <h1 className="text-[26px] font-extrabold tracking-tight leading-none">
               Morning Scan
             </h1>
             <p className="text-sm mt-1.5 muted">
@@ -355,45 +355,3 @@ export function MorningScanClient({ scansByWindow, costsByWindow, agency }: Prop
     </div>
   );
 }
-
-// Scoped dark theme, ported from docs/mockups/morning-scan-mockup.html.
-// All selectors are under .scan-root so it never leaks into the light dashboard.
-const SCAN_CSS = `
-.scan-root{
-  --bg:#060608; --card:#0e0e12; --card2:#121218; --line:rgba(255,255,255,.07);
-  --text:#e8e8ec; --muted:#8b8b95; --faint:#5c5c66;
-  --brand:#960FD2; --neon:#873CF0;
-  --kill:#f87171; --warn:#fb923c; --watch:#fbbf24; --green:#34d399; --learn:#6b7280; --fat:#c084fc;
-  min-height:100vh; background:var(--bg); color:var(--text);
-  font-family:Inter,system-ui,sans-serif; position:relative;
-}
-.scan-root::before{ content:""; position:fixed; inset:0; pointer-events:none; z-index:0;
-  background:radial-gradient(1100px 520px at 75% -10%, rgba(150,15,210,.16), transparent 60%),
-             radial-gradient(800px 400px at -10% 110%, rgba(135,60,240,.08), transparent 60%); }
-.scan-root > div{ position:relative; z-index:1; }
-.scan-root .mono{ font-family:'JetBrains Mono',ui-monospace,monospace; }
-.scan-root .muted{ color:var(--muted); }
-.scan-root .faint{ color:var(--faint); }
-.scan-root .neon{ color:var(--neon); }
-.scan-root .card{ background:var(--card); border:1px solid var(--line); border-radius:14px; }
-.scan-root .chip{ font-family:'JetBrains Mono',ui-monospace,monospace; font-size:11px; font-weight:700; padding:2px 8px; border-radius:6px; letter-spacing:.04em; display:inline-block; }
-.scan-root .c-kill{ color:var(--kill); background:rgba(248,113,113,.12); }
-.scan-root .c-warn{ color:var(--warn); background:rgba(251,146,60,.12); }
-.scan-root .c-watch{ color:var(--watch); background:rgba(251,191,36,.12); }
-.scan-root .c-green{ color:var(--green); background:rgba(52,211,153,.12); }
-.scan-root .c-learn{ color:#9ca3af; background:rgba(156,163,175,.12); }
-.scan-root .c-fat{ color:var(--fat); background:rgba(192,132,252,.14); }
-.scan-root .bar-kill{ box-shadow:inset 3px 0 0 0 var(--kill); }
-.scan-root .bar-warn{ box-shadow:inset 3px 0 0 0 var(--warn); }
-.scan-root .bar-watch{ box-shadow:inset 3px 0 0 0 var(--watch); }
-.scan-root .bar-green{ box-shadow:inset 3px 0 0 0 var(--green); }
-.scan-root .bar-learning{ box-shadow:inset 3px 0 0 0 var(--learn); }
-.scan-root .btn{ font-size:12px; font-weight:600; padding:6px 12px; border-radius:8px; border:1px solid var(--line); color:var(--text); background:transparent; cursor:pointer; }
-.scan-root .btn:hover{ background:var(--card2); }
-.scan-root .btn:disabled{ cursor:default; opacity:.6; }
-.scan-root .wpill{ font-family:'JetBrains Mono',ui-monospace,monospace; font-size:12px; font-weight:700; padding:6px 14px; border-radius:9px; border:1px solid var(--line); color:var(--muted); cursor:pointer; background:transparent; }
-.scan-root .wpill:hover{ background:var(--card2); color:var(--text); }
-.scan-root .wpill.active{ background:linear-gradient(135deg,var(--brand),var(--neon)); border-color:transparent; color:#fff; }
-.scan-root .done{ opacity:.4; }
-.scan-root td,.scan-root th{ white-space:nowrap; }
-`;
