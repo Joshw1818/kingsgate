@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kingsgate — Client Tracker (mockup)</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#060608; --card:#0e0e12; --card2:#121218; --line:rgba(255,255,255,.07);
+    --text:#e8e8ec; --muted:#8b8b95; --faint:#5c5c66;
+    --brand:#960FD2; --neon:#873CF0;
+    --red:#f87171; --amber:#fbbf24; --green:#34d399; --grey:#6b7280; --offer:#c084fc;
+  }
+  body{ font-family:Inter,system-ui,sans-serif; background:var(--bg); color:var(--text); }
+  body::before{ content:""; position:fixed; inset:0; pointer-events:none;
+    background:radial-gradient(1100px 520px at 75% -10%, rgba(150,15,210,.16), transparent 60%),
+               radial-gradient(800px 400px at -10% 110%, rgba(135,60,240,.08), transparent 60%); }
+  .mono{ font-family:'JetBrains Mono',monospace; }
+  .card{ background:var(--card); border:1px solid var(--line); border-radius:14px; }
+  .chip{ font-family:'JetBrains Mono',monospace; font-size:10px; font-weight:700; padding:2px 7px; border-radius:6px; letter-spacing:.03em; white-space:nowrap; }
+  .c-red{ color:var(--red); background:rgba(248,113,113,.12); }
+  .c-amber{ color:var(--amber); background:rgba(251,191,36,.12); }
+  .c-green{ color:var(--green); background:rgba(52,211,153,.12); }
+  .c-grey{ color:#9ca3af; background:rgba(156,163,175,.12); }
+  .c-offer{ color:var(--offer); background:rgba(192,132,252,.14); }
+  .pill{ font-family:'JetBrains Mono',monospace; font-size:12px; font-weight:700; padding:6px 13px; border-radius:9px; border:1px solid var(--line); color:var(--muted); cursor:pointer; }
+  .pill:hover{ background:var(--card2); color:var(--text); }
+  .pill.active{ background:linear-gradient(135deg,var(--brand),var(--neon)); border-color:transparent; color:#fff; }
+  .sub{ color:var(--faint); font-weight:400; }
+  td,th{ white-space:nowrap; }
+  tr.paidrow{ opacity:.45; }
+  .markpaid{ font-size:11px; font-weight:600; padding:3px 9px; border-radius:7px; border:1px solid var(--line); color:var(--muted); cursor:pointer; }
+  .markpaid:hover{ background:var(--card2); color:var(--text); }
+</style>
+</head>
+<body>
+<div class="relative max-w-6xl mx-auto px-5 py-8">
+
+  <!-- Tab nav (illustrative) -->
+  <nav class="flex items-center gap-1 mb-6 text-sm">
+    <span class="mono text-[11px] font-bold tracking-[.2em] mr-3" style="color:var(--neon)">KINGSGATE · MISSION CONTROL</span>
+    <span class="px-3 py-1.5 rounded-lg" style="color:var(--muted)">Morning Scan</span>
+    <span class="px-3 py-1.5 rounded-lg font-semibold" style="background:var(--card);border:1px solid var(--line)">Client Tracker</span>
+    <span class="px-3 py-1.5 rounded-lg" style="color:var(--faint)">Money</span>
+  </nav>
+
+  <header class="mb-5">
+    <h1 class="text-[26px] font-extrabold tracking-tight leading-none">Client Tracker</h1>
+    <p class="text-sm mt-1.5" style="color:var(--muted)">Lifecycle, billing arrangement &amp; what's due — Friday 5 June</p>
+  </header>
+
+  <!-- Summary -->
+  <section class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-5" id="stats"></section>
+
+  <!-- Filters -->
+  <div class="flex flex-wrap items-center gap-2 mb-5">
+    <div id="filters" class="flex flex-wrap gap-2"></div>
+    <span class="text-[11px] ml-1" style="color:var(--faint)">stage &amp; due date computed from start_date + billing_type · paid status manual until Stripe (P7)</span>
+  </div>
+
+  <!-- Table -->
+  <section class="card overflow-x-auto mb-8">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="text-left text-[11px] uppercase tracking-wide" style="color:var(--faint)">
+          <th class="px-4 py-3">Client</th>
+          <th class="px-3 py-3">Stage</th>
+          <th class="px-3 py-3">Billing arrangement</th>
+          <th class="px-3 py-3">Next due</th>
+          <th class="px-3 py-3">Status</th>
+          <th class="px-3 py-3">MRR</th>
+          <th class="px-4 py-3"></th>
+        </tr>
+      </thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </section>
+
+  <p class="text-[12px] leading-relaxed" style="color:var(--faint)">
+    Mockup — illustrative dates, but every stage and due date is computed live from data shaped like the
+    <span class="mono">clients</span> ledger + <span class="mono">billing_schedule</span> table (Pillar 2.6). Sorted by next due, soonest/overdue first.
+    "Mark paid" writes a paid row to <span class="mono">billing_schedule</span> and advances the next due — the same action Stripe will perform automatically once P7 is wired.
+  </p>
+</div>
+
+<script>
+/* ===== fixed "today" so the mockup is deterministic ===== */
+const TODAY = new Date('2026-06-05T00:00:00');
+const D = s => new Date(s+'T00:00:00');
+const addDays=(dt,n)=>{const x=new Date(dt);x.setDate(x.getDate()+n);return x;};
+const addMonths=(dt,n)=>{const x=new Date(dt);x.setMonth(x.getMonth()+n);return x;};
+const daysBetween=(a,b)=>Math.round((b-a)/86400000);
+const fmt = dt => dt.toLocaleDateString('en-GB',{day:'numeric',month:'short'});
+const anchorDate=(ref,day)=>new Date(ref.getFullYear(),ref.getMonth(),day);
+function quarterDues(start){ let d=new Date(start); while(d<TODAY) d=addMonths(d,3); return {nextQ:d, prevQ:addMonths(d,-3)}; }
+
+/* ===== the book — shaped like clients + billing_schedule =====
+   type: rolling | advance_3mo | payment_plan
+   anchor = day-of-month (rolling) · paid = current cycle settled · paidUpfront = £500 paid (offer monthly)
+   plan = explicit installment rows (payment_plan)                                                        */
+let book = [
+  // —— offer period (started within 50 days) ——
+  {name:'Pro Clean Cardiff',     mrr:400, start:'2026-05-28', type:'rolling',      anchor:28, paidUpfront:true},
+  {name:'Carpet Pride',          mrr:400, start:'2026-05-20', type:'rolling',      anchor:20, paidUpfront:true},
+  {name:'Captiv8 Cleaning',      mrr:400, start:'2026-05-10', type:'payment_plan', recur:400, plan:[{due:'2026-05-10',amount:250,paid:true},{due:'2026-06-09',amount:250,paid:false}]},
+  {name:'Clean Home Services',   mrr:400, start:'2026-04-28', type:'rolling',      anchor:28, paidUpfront:true},
+  {name:'JK Carpet Clean',       mrr:400, start:'2026-04-20', type:'payment_plan', recur:400, plan:[{due:'2026-04-20',amount:250,paid:true},{due:'2026-05-20',amount:250,paid:false}]},
+  // —— recurring monthly £400 ——
+  {name:'Carpet Care Services',  mrr:400, start:'2025-11-03', type:'rolling', anchor:3,  paid:true},
+  {name:'Cotswold Cleaning',     mrr:400, start:'2025-10-12', type:'rolling', anchor:12, paid:false},
+  {name:'Enviro Clean Stockport',mrr:400, start:'2025-09-01', type:'rolling', anchor:1,  paid:false},
+  {name:'Enviro Clean Huddersfield',mrr:400, start:'2025-12-20', type:'rolling', anchor:20, paid:false},
+  {name:'Mister Clean',          mrr:400, start:'2025-08-25', type:'rolling', anchor:25, paid:false},
+  {name:'Hi Fi',                 mrr:400, start:'2025-10-08', type:'rolling', anchor:8,  paid:false},
+  {name:'Diamond',               mrr:400, start:'2025-07-15', type:'rolling', anchor:15, paid:false},
+  {name:'RS Clean',              mrr:400, start:'2025-11-02', type:'rolling', anchor:2,  paid:true},
+  {name:'Pro Clean',             mrr:400, start:'2025-09-18', type:'rolling', anchor:18, paid:false},
+  {name:'Breeze Cleaning',       mrr:400, start:'2025-12-10', type:'rolling', anchor:10, paid:false},
+  {name:'The Carpet Lab',        mrr:400, start:'2026-01-28', type:'rolling', anchor:28, paid:false},
+  {name:'Bishops Carpet Cleaning',mrr:400, start:'2025-10-05', type:'rolling', anchor:5,  paid:false},
+  // —— recurring monthly, other rates ——
+  {name:'E.M Pro Solutions',     mrr:350, start:'2025-08-22', type:'rolling', anchor:22, paid:false},
+  {name:'MKT',                   mrr:350, start:'2025-07-09', type:'rolling', anchor:9,  paid:false},
+  {name:'Dri-Now Cheltenham',    mrr:320, start:'2025-11-14', type:'rolling', anchor:14, paid:false},
+  // —— quarterly advance ——
+  {name:'Dri-Now Maidstone',     mrr:266, start:'2025-12-08', type:'advance_3mo', paid:true},
+  {name:'Dri-Now Colwyn Bay',    mrr:266, start:'2025-11-20', type:'advance_3mo', paid:true},
+  {name:'Dri-Now Glasgow',       mrr:266, start:'2026-01-15', type:'advance_3mo', paid:true},
+  {name:'Aylco Cleaning',        mrr:266, start:'2025-10-30', type:'advance_3mo', paid:true},
+  {name:'Angus | Julian (ref)',  mrr:266, start:'2026-03-01', type:'advance_3mo', paid:false},
+  {name:'Dri-Now Shropshire',    mrr:225, start:'2025-09-10', type:'advance_3mo', paid:true},
+];
+
+function compute(c){
+  const start=D(c.start), offerEnd=addDays(start,50);
+  const churned=c.end?D(c.end)<TODAY:false;
+  const inOffer=!churned && TODAY<=offerEnd;
+  const stage=churned?'churned':inOffer?'offer':'recurring';
+  const dayN=daysBetween(start,TODAY);
+  let due, amount, kind;
+
+  if(c.type==='payment_plan'){
+    const unpaid=(c.plan||[]).filter(p=>!p.paid).sort((a,b)=>D(a.due)-D(b.due));
+    if(unpaid.length){ due=D(unpaid[0].due); amount=unpaid[0].amount; kind='installment'; }
+    else { const a=anchorDate(TODAY,start.getDate()); due=a>=TODAY?a:anchorDate(addMonths(TODAY,1),start.getDate()); amount=c.recur||400; kind='retainer'; }
+  } else if(inOffer && c.paidUpfront){
+    due=offerEnd; amount=c.mrr; kind='retainer'; // first retainer at end of the 50-day offer
+  } else if(c.type==='rolling'){
+    const dtm=anchorDate(TODAY,c.anchor);
+    due = (dtm>=TODAY) ? (c.paid?anchorDate(addMonths(TODAY,1),c.anchor):dtm)
+                       : (c.paid?anchorDate(addMonths(TODAY,1),c.anchor):dtm);
+    amount=c.mrr; kind='retainer';
+  } else { // advance_3mo
+    const {nextQ,prevQ}=quarterDues(start);
+    due=c.paid?nextQ:prevQ; amount=c.mrr*3; kind='advance_quarter';
+  }
+
+  const dd=daysBetween(TODAY,due);
+  const status = due<TODAY ? 'overdue' : (dd<=7 ? 'due_soon' : 'current');
+  return {stage,dayN,offerEnd,due,amount,kind,status,dd};
+}
+
+function arrangement(c){
+  if(c.type==='rolling') return `Monthly retainer · £${c.mrr}`;
+  if(c.type==='advance_3mo') return `Quarterly advance · £${c.mrr*3} <span class="sub">(£${c.mrr}/mo)</span>`;
+  return `Payment plan · £250 × 2 <span class="sub">→ £${c.recur||400}/mo</span>`;
+}
+
+const STAGE={offer:['c-offer','Offer'],recurring:['c-green','Recurring'],churned:['c-grey','Churned']};
+const STATUS={overdue:'c-red',due_soon:'c-amber',current:'c-green'};
+function statusLabel(s,dd){ if(s==='overdue') return `Overdue ${Math.abs(dd)}d`; if(s==='due_soon') return dd===0?'Due today':`Due in ${dd}d`; return 'Current'; }
+const gbp = n => '£'+Number(n).toLocaleString('en-GB');
+
+let filter='all';
+
+function render(){
+  const computed = book.map(c=>({c, r:compute(c)})).sort((a,b)=> a.r.due - b.r.due);
+
+  /* summary */
+  const inOffer = computed.filter(x=>x.r.stage==='offer').length;
+  const overdue = computed.filter(x=>x.r.status==='overdue');
+  const dueSoon = computed.filter(x=>x.r.status==='due_soon');
+  const overdueSum = overdue.reduce((s,x)=>s+x.r.amount,0);
+  const dueSoonSum = dueSoon.reduce((s,x)=>s+x.r.amount,0);
+  const mrr = book.reduce((s,c)=>s+c.mrr,0);
+  const stats=[
+    ['Active clients', book.length],
+    ['In offer period', inOffer],
+    ['Overdue', `${overdue.length} · ${gbp(overdueSum)}`],
+    ['Due ≤7 days', `${dueSoon.length} · ${gbp(dueSoonSum)}`],
+    ['MRR', gbp(mrr)],
+    ['Avg retainer', '£360.58'],
+  ];
+  document.getElementById('stats').innerHTML=stats.map(([k,v])=>`
+    <div class="card px-4 py-3"><div class="text-[10px] uppercase tracking-widest mb-1" style="color:var(--faint)">${k}</div><div class="mono text-xl font-bold">${v}</div></div>`).join('');
+
+  /* filters */
+  const F=[['all','All',book.length],['offer','Offer period',inOffer],['recurring','Recurring',computed.filter(x=>x.r.stage==='recurring').length],['overdue','Overdue',overdue.length],['due_soon','Due ≤7d',dueSoon.length]];
+  document.getElementById('filters').innerHTML=F.map(([k,l,n])=>`<button class="pill ${k===filter?'active':''}" data-f="${k}">${l} <span class="sub">${n}</span></button>`).join('');
+
+  /* rows */
+  const shown = computed.filter(x=> filter==='all' ? true : (x.r.stage===filter || x.r.status===filter));
+  document.getElementById('rows').innerHTML = shown.map(({c,r})=>{
+    const [sc,sl]=STAGE[r.stage];
+    const stageCell = r.stage==='offer'
+      ? `<span class="chip ${sc}">Offer · Day ${r.dayN}/50</span><div class="text-[11px] mt-1" style="color:var(--faint)">ends ${fmt(r.offerEnd)}</div>`
+      : `<span class="chip ${sc}">${sl}</span>`;
+    return `<tr class="border-t" style="border-color:var(--line)" data-i="${book.indexOf(c)}">
+      <td class="px-4 py-3 font-semibold">${c.name}</td>
+      <td class="px-3 py-3 align-top">${stageCell}</td>
+      <td class="px-3 py-3">${arrangement(c)}</td>
+      <td class="px-3 py-3 mono">${fmt(r.due)} · ${gbp(r.amount)}</td>
+      <td class="px-3 py-3"><span class="chip ${STATUS[r.status]}">${statusLabel(r.status,r.dd)}</span></td>
+      <td class="px-3 py-3 mono">${gbp(c.mrr)}</td>
+      <td class="px-4 py-3 text-right">${r.status!=='current'?`<button class="markpaid" data-paid="${book.indexOf(c)}">Mark paid</button>`:''}</td>
+    </tr>`;
+  }).join('');
+
+  document.querySelectorAll('[data-f]').forEach(b=>b.onclick=()=>{filter=b.dataset.f;render();});
+  document.querySelectorAll('[data-paid]').forEach(b=>b.onclick=()=>{
+    const c=book[+b.dataset.paid];
+    if(c.type==='payment_plan'){ const u=(c.plan||[]).filter(p=>!p.paid).sort((a,b)=>D(a.due)-D(b.due)); if(u[0]) u[0].paid=true; }
+    else c.paid=true;
+    render();
+  });
+}
+render();
+</script>
+</body>
+</html>

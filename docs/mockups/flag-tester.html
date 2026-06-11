@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kingsgate — Ad-Set Flag Tester</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  :root{ --brand:#960FD2; --brand2:#873CF0; }
+  body{ font-family:Inter,system-ui,sans-serif; }
+  .mono{ font-family:'JetBrains Mono',monospace; }
+  input{ outline:none; }
+  input:focus{ box-shadow:0 0 0 2px rgba(150,15,210,.25); border-color:var(--brand); }
+  .lbar{ box-shadow: inset 4px 0 0 0 currentColor; }
+</style>
+</head>
+<body class="bg-slate-50 text-slate-900">
+<div class="max-w-5xl mx-auto px-4 py-8">
+
+  <!-- Header -->
+  <header class="mb-6">
+    <div class="flex items-center gap-2 mb-1">
+      <span class="mono text-xs font-bold tracking-widest" style="color:var(--brand)">KINGSGATE</span>
+      <span class="text-xs text-slate-400">/ ad management</span>
+    </div>
+    <h1 class="text-2xl font-extrabold tracking-tight">Ad-Set Flag Tester</h1>
+    <p class="text-sm text-slate-500 mt-1 max-w-2xl">
+      Mirrors the logic in <span class="mono text-slate-700">killFlag.ts</span>. Edit any sample row to sanity-check the thresholds against real ad sets, or to train a VA on what each flag means. CPL is the signal that drives the flag; bookings/ROAS aren't needed.
+    </p>
+  </header>
+
+  <!-- Config -->
+  <section class="bg-white border border-slate-200 rounded-xl p-4 mb-6">
+    <div class="flex flex-wrap items-end gap-5">
+      <div>
+        <label class="block text-[11px] font-semibold uppercase tracking-wide text-slate-400 mb-1">Lead→booking CVR</label>
+        <input id="cfg-cvr" type="number" step="0.01" value="0.40" class="mono w-24 border border-slate-300 rounded-md px-2 py-1.5 text-sm">
+        <p class="text-[11px] text-slate-400 mt-1">baked into the maxes</p>
+      </div>
+      <div>
+        <label class="block text-[11px] font-semibold uppercase tracking-wide text-slate-400 mb-1">Kill multiple</label>
+        <input id="cfg-kill" type="number" step="0.5" value="2" class="mono w-24 border border-slate-300 rounded-md px-2 py-1.5 text-sm">
+        <p class="text-[11px] text-slate-400 mt-1">× the 5x max CPL</p>
+      </div>
+      <div>
+        <label class="block text-[11px] font-semibold uppercase tracking-wide text-slate-400 mb-1">Min leads to kill</label>
+        <input id="cfg-minleads" type="number" step="1" value="2" class="mono w-24 border border-slate-300 rounded-md px-2 py-1.5 text-sm">
+        <p class="text-[11px] text-slate-400 mt-1">noise guard</p>
+      </div>
+      <div class="ml-auto flex gap-2">
+        <button id="sortBtn" class="text-sm font-semibold text-white rounded-md px-3 py-2" style="background:var(--brand)">Sort worst-first</button>
+        <button id="addBtn" class="text-sm font-semibold rounded-md px-3 py-2 border border-slate-300 hover:bg-slate-50">+ Add ad set</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Ad sets -->
+  <section id="cards" class="space-y-3 mb-8"></section>
+
+  <!-- Legend -->
+  <section class="bg-white border border-slate-200 rounded-xl p-4 mb-8">
+    <h2 class="text-sm font-bold mb-3">Flags</h2>
+    <div class="grid sm:grid-cols-2 gap-x-8 gap-y-2 text-sm">
+      <div><span class="inline-block w-2.5 h-2.5 rounded-full align-middle mr-2 bg-emerald-500"></span><b>Green</b> — at/under target. No action.</div>
+      <div><span class="inline-block w-2.5 h-2.5 rounded-full align-middle mr-2 bg-amber-400"></span><b>Watch</b> — over target, inside the 5x floor. Review tomorrow.</div>
+      <div><span class="inline-block w-2.5 h-2.5 rounded-full align-middle mr-2 bg-orange-500"></span><b>Warn</b> — over the 5x floor, below kill. Watch closely / refresh.</div>
+      <div><span class="inline-block w-2.5 h-2.5 rounded-full align-middle mr-2 bg-red-500"></span><b>Kill</b> — at/over kill line (or spent kill-line with 0 leads). Kill + replace.</div>
+      <div><span class="inline-block w-2.5 h-2.5 rounded-full align-middle mr-2 bg-slate-300"></span><b>Learning</b> — too little spend to judge. Leave it.</div>
+      <div><span class="mono text-xs font-bold px-1.5 py-0.5 rounded align-middle mr-2" style="background:#f3e8ff;color:#6b21a8">⚡ Fatigue</span> CPL + frequency both rising 3 days. Refresh early.</div>
+    </div>
+  </section>
+
+  <!-- Reference matrix -->
+  <section class="bg-white border border-slate-200 rounded-xl p-4">
+    <h2 class="text-sm font-bold mb-1">KPI reference (computed)</h2>
+    <p class="text-[12px] text-slate-500 mb-3">The table from the doc, derived live from the config above. Max CPL should match your sheet; the kill line is fixed to the 5x row.</p>
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm mono">
+        <thead>
+          <tr class="text-left text-[11px] uppercase tracking-wide text-slate-400 border-b border-slate-200">
+            <th class="py-2 pr-4">Offer</th><th class="py-2 pr-4">ROAS</th><th class="py-2 pr-4">Max CPB</th><th class="py-2 pr-4">Max CPL</th><th class="py-2 pr-4">Kill line</th>
+          </tr>
+        </thead>
+        <tbody id="matrix"></tbody>
+      </table>
+    </div>
+  </section>
+
+</div>
+
+<script>
+/* ---- logic: mirror of killFlag.ts ---- */
+const r2 = n => Math.round(n*100)/100;
+const maxCpb = (o,t)=> o/t;
+const maxCpl = (o,t,cvr)=> maxCpb(o,t)*cvr;
+function rising(s){ if(s.length<2) return false; for(let i=1;i<s.length;i++){ if(s[i]<=s[i-1]) return false; } return true; }
+function parseSeries(str){ return String(str||"").split(",").map(x=>parseFloat(x.trim())).filter(x=>!isNaN(x)); }
+
+function cfg(){
+  return {
+    assumedCvr: parseFloat(document.getElementById('cfg-cvr').value)||0.40,
+    killMultiple: parseFloat(document.getElementById('cfg-kill').value)||2,
+    minLeadsForKill: parseInt(document.getElementById('cfg-minleads').value)||1,
+    fatigueDays: 3,
+  };
+}
+
+function evaluate(m, c){
+  const targetCpl=r2(maxCpl(m.offerValue,m.roasTarget,c.assumedCvr));
+  const floorCpl=r2(maxCpl(m.offerValue,5,c.assumedCvr));
+  const killCpl=r2(floorCpl*c.killMultiple);
+  const cpl = m.leads>0 ? r2(m.spend/m.leads) : null;
+  const cplT=parseSeries(m.cplTrend), freqT=parseSeries(m.freqTrend);
+  const fatigue = cplT.length>=c.fatigueDays && freqT.length>=c.fatigueDays &&
+                  rising(cplT.slice(-c.fatigueDays)) && rising(freqT.slice(-c.fatigueDays));
+  const base={targetCpl,floorCpl,killCpl,cpl,fatigue};
+  if(m.leads===0 && m.spend>=killCpl) return {...base,flag:'kill',reason:`£${r2(m.spend)} spent, zero leads (≥ kill line £${killCpl}).`,action:'Kill it. Duplicate a winner or launch a fresh ad, same offer.'};
+  if(m.leads===0) return {...base,flag:'learning',reason:`£${r2(m.spend)} spent, no leads yet (below kill line £${killCpl}).`,action:'Leave running. Re-check at the next scan.'};
+  const cv=cpl; let flag,reason,action;
+  if(cv>=killCpl){
+    if(m.leads<c.minLeadsForKill){ flag='warn'; reason=`CPL £${cv} over the kill line but only ${m.leads} lead so far — could be noise.`; action=`Hold this scan. If CPL stays above £${killCpl} with another lead, kill and replace.`; }
+    else { flag='kill'; reason=`CPL £${cv} ≥ kill line £${killCpl} (2× the 5x max £${floorCpl}).`; action='Kill the ad set / creative, then duplicate a winner or launch fresh, same offer.'; }
+  } else if(cv>floorCpl){ flag='warn'; reason=`CPL £${cv} above the 5x floor £${floorCpl} — below minimum ROAS.`; action=`Watch through the day. If it climbs toward £${killCpl}, duplicate or refresh before it tips.`; }
+  else if(cv>targetCpl){ flag='watch'; reason=`CPL £${cv} above target £${targetCpl} but still inside the 5x floor £${floorCpl}.`; action='Profitable, just under goal. Leave it; review tomorrow.'; }
+  else { flag='green'; reason=`CPL £${cv} at or under target £${targetCpl}.`; action='Within KPI. No action.'; }
+  if(fatigue && (flag==='green'||flag==='watch')) action='CPL still OK but fatigue building (CPL + frequency rising) — queue a fresh creative now.';
+  return {...base,flag,reason,action};
+}
+
+/* ---- styling maps ---- */
+const STYLE = {
+  green:   {bar:'text-emerald-500', chip:'bg-emerald-100 text-emerald-800', label:'GREEN'},
+  watch:   {bar:'text-amber-400',   chip:'bg-amber-100 text-amber-800',     label:'WATCH'},
+  warn:    {bar:'text-orange-500',  chip:'bg-orange-100 text-orange-800',   label:'WARN'},
+  kill:    {bar:'text-red-500',     chip:'bg-red-100 text-red-800',         label:'KILL'},
+  learning:{bar:'text-slate-300',   chip:'bg-slate-100 text-slate-600',     label:'LEARNING'},
+};
+const SEV = {kill:0,warn:1,watch:2,learning:3,green:4};
+
+/* ---- sample data (editable) — your naming convention "date | offer" ---- */
+let rows = [
+  {name:'Diamond — 3/6 | 3 for £120', offerValue:120, roasTarget:5, spend:48, leads:6, cplTrend:'', freqTrend:''},
+  {name:'MKT — 3/7 | 3 for £99',       offerValue:99,  roasTarget:7, spend:40, leads:5, cplTrend:'', freqTrend:''},
+  {name:'HiFi — 3/8 | 3 for £150',     offerValue:150, roasTarget:10,spend:90, leads:6, cplTrend:'', freqTrend:''},
+  {name:'ProClean — 3/5 | 3 for £99',  offerValue:99,  roasTarget:5, spend:70, leads:4, cplTrend:'', freqTrend:''},
+  {name:'RS Clean — 3/6 | 3 for £120', offerValue:120, roasTarget:7, spend:30, leads:0, cplTrend:'', freqTrend:''},
+  {name:'Enviro — 3/9 | 3 for £150',   offerValue:150, roasTarget:5, spend:60, leads:5, cplTrend:'9,10.5,12', freqTrend:'1.9,2.2,2.6'},
+  {name:'Diamond #2 — 3/6 | 3 for £120',offerValue:120,roasTarget:5, spend:12, leads:0, cplTrend:'', freqTrend:''},
+];
+
+const NUM = (v)=> (typeof v==='number' && !isNaN(v));
+
+function inp(idx, key, value, opts={}){
+  const w = opts.w || 'w-16';
+  const step = opts.step || 'any';
+  const type = opts.text ? 'text' : 'number';
+  return `<input data-i="${idx}" data-k="${key}" type="${type}" ${type==='number'?`step="${step}"`:''} value="${value}" class="${w} mono text-sm border border-slate-300 rounded-md px-2 py-1 ${opts.cls||''}">`;
+}
+
+function render(){
+  const c = cfg();
+  const wrap = document.getElementById('cards');
+  wrap.innerHTML = rows.map((m,i)=>{
+    const res = evaluate(m, c);
+    const s = STYLE[res.flag];
+    const cplTxt = res.cpl===null ? '—' : '£'+res.cpl.toFixed(2);
+    const fat = res.fatigue ? `<span class="mono text-[11px] font-bold px-1.5 py-0.5 rounded" style="background:#f3e8ff;color:#6b21a8">⚡ FATIGUE</span>` : '';
+    return `
+    <div class="lbar ${s.bar} bg-white border border-slate-200 rounded-xl p-4">
+      <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <div class="grow min-w-[200px]">
+          ${inp(i,'name',m.name,{text:true,w:'w-full max-w-xs',cls:'font-semibold'})}
+        </div>
+        <label class="text-[11px] text-slate-400">Offer £ ${inp(i,'offerValue',m.offerValue,{w:'w-16'})}</label>
+        <label class="text-[11px] text-slate-400">ROAS× ${inp(i,'roasTarget',m.roasTarget,{w:'w-14'})}</label>
+        <label class="text-[11px] text-slate-400">Spend £ ${inp(i,'spend',m.spend,{w:'w-20'})}</label>
+        <label class="text-[11px] text-slate-400">Leads ${inp(i,'leads',m.leads,{w:'w-14',step:'1'})}</label>
+        <label class="text-[11px] text-slate-400">CPL 3d ${inp(i,'cplTrend',m.cplTrend,{text:true,w:'w-24'})}</label>
+        <label class="text-[11px] text-slate-400">Freq 3d ${inp(i,'freqTrend',m.freqTrend,{text:true,w:'w-24'})}</label>
+        <button data-del="${i}" class="ml-auto text-slate-300 hover:text-red-500 text-lg leading-none px-1">×</button>
+      </div>
+      <div class="mt-3 flex flex-wrap items-center gap-2">
+        <span class="mono text-xs font-bold px-2 py-0.5 rounded ${s.chip}">${s.label}</span>
+        ${fat}
+        <span class="text-sm text-slate-700">CPL <b class="mono">${cplTxt}</b></span>
+        <span class="text-[11px] text-slate-400 mono">target £${res.targetCpl.toFixed(2)} · floor £${res.floorCpl.toFixed(2)} · kill £${res.killCpl.toFixed(2)}</span>
+      </div>
+      <p class="text-[13px] text-slate-500 mt-1.5">${res.reason}</p>
+      <p class="text-[13px] mt-0.5"><span class="text-slate-400">Do:</span> <span class="text-slate-800">${res.action}</span></p>
+    </div>`;
+  }).join('');
+
+  // matrix
+  const offers=[99,120,150], targets=[5,7,10];
+  const m = document.getElementById('matrix');
+  m.innerHTML = offers.flatMap(o=>targets.map(t=>{
+    const cpb=r2(maxCpb(o,t)), cpl=r2(maxCpl(o,t,c.assumedCvr)), kill=r2(maxCpl(o,5,c.assumedCvr)*c.killMultiple);
+    const top = (t===5);
+    return `<tr class="${top?'border-t-2 border-slate-200':''} text-slate-700">
+      <td class="py-1.5 pr-4">${top?('£'+o):''}</td>
+      <td class="py-1.5 pr-4">${t}x</td>
+      <td class="py-1.5 pr-4">£${cpb.toFixed(2)}</td>
+      <td class="py-1.5 pr-4 font-bold">£${cpl.toFixed(2)}</td>
+      <td class="py-1.5 pr-4 text-red-600">£${kill.toFixed(2)}</td>
+    </tr>`;
+  })).join('');
+}
+
+/* ---- events ---- */
+document.getElementById('cards').addEventListener('input', e=>{
+  const t=e.target;
+  if(t.dataset.i!==undefined){
+    const i=+t.dataset.i, k=t.dataset.k;
+    rows[i][k] = (t.type==='number') ? (parseFloat(t.value)||0) : t.value;
+    // re-evaluate just this card without full re-render (keep focus)
+    const c=cfg(); const res=evaluate(rows[i],c); const s=STYLE[res.flag];
+    const card=t.closest('.lbar');
+    card.className=`lbar ${s.bar} bg-white border border-slate-200 rounded-xl p-4`;
+    const strip=card.children[1];
+    const cplTxt = res.cpl===null ? '—' : '£'+res.cpl.toFixed(2);
+    const fat = res.fatigue ? `<span class="mono text-[11px] font-bold px-1.5 py-0.5 rounded" style="background:#f3e8ff;color:#6b21a8">⚡ FATIGUE</span>` : '';
+    strip.innerHTML = `<span class="mono text-xs font-bold px-2 py-0.5 rounded ${s.chip}">${s.label}</span>${fat}<span class="text-sm text-slate-700">CPL <b class="mono">${cplTxt}</b></span><span class="text-[11px] text-slate-400 mono">target £${res.targetCpl.toFixed(2)} · floor £${res.floorCpl.toFixed(2)} · kill £${res.killCpl.toFixed(2)}</span>`;
+    card.children[2].innerHTML=res.reason;
+    card.children[3].innerHTML=`<span class="text-slate-400">Do:</span> <span class="text-slate-800">${res.action}</span>`;
+  }
+});
+document.getElementById('cards').addEventListener('click', e=>{
+  if(e.target.dataset.del!==undefined){ rows.splice(+e.target.dataset.del,1); render(); }
+});
+document.getElementById('addBtn').addEventListener('click', ()=>{
+  rows.push({name:'New ad set', offerValue:120, roasTarget:5, spend:0, leads:0, cplTrend:'', freqTrend:''});
+  render();
+});
+document.getElementById('sortBtn').addEventListener('click', ()=>{
+  const c=cfg();
+  rows.sort((a,b)=>{
+    const ra=evaluate(a,c), rb=evaluate(b,c);
+    return (SEV[ra.flag]-(ra.fatigue?0.5:0)) - (SEV[rb.flag]-(rb.fatigue?0.5:0));
+  });
+  render();
+});
+['cfg-cvr','cfg-kill','cfg-minleads'].forEach(id=>document.getElementById(id).addEventListener('input', render));
+
+render();
+</script>
+</body>
+</html>

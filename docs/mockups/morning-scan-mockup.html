@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kingsgate — Morning Scan (mockup)</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#060608; --card:#0e0e12; --card2:#121218; --line:rgba(255,255,255,.07);
+    --text:#e8e8ec; --muted:#8b8b95; --faint:#5c5c66;
+    --brand:#960FD2; --neon:#873CF0;
+    --kill:#f87171; --warn:#fb923c; --watch:#fbbf24; --green:#34d399; --learn:#6b7280; --fat:#c084fc;
+  }
+  body{ font-family:Inter,system-ui,sans-serif; background:var(--bg); color:var(--text); }
+  body::before{ content:""; position:fixed; inset:0; pointer-events:none;
+    background:radial-gradient(1100px 520px at 75% -10%, rgba(150,15,210,.16), transparent 60%),
+               radial-gradient(800px 400px at -10% 110%, rgba(135,60,240,.08), transparent 60%); }
+  .mono{ font-family:'JetBrains Mono',monospace; }
+  .card{ background:var(--card); border:1px solid var(--line); border-radius:14px; }
+  .chip{ font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:700; padding:2px 8px; border-radius:6px; letter-spacing:.04em; }
+  .c-kill{ color:var(--kill); background:rgba(248,113,113,.12); }
+  .c-warn{ color:var(--warn); background:rgba(251,146,60,.12); }
+  .c-watch{ color:var(--watch); background:rgba(251,191,36,.12); }
+  .c-green{ color:var(--green); background:rgba(52,211,153,.12); }
+  .c-learn{ color:#9ca3af; background:rgba(156,163,175,.12); }
+  .c-fat{ color:var(--fat); background:rgba(192,132,252,.14); }
+  .bar-kill{ box-shadow:inset 3px 0 0 0 var(--kill); }
+  .bar-warn{ box-shadow:inset 3px 0 0 0 var(--warn); }
+  .bar-watch{ box-shadow:inset 3px 0 0 0 var(--watch); }
+  .bar-green{ box-shadow:inset 3px 0 0 0 var(--green); }
+  .bar-learning{ box-shadow:inset 3px 0 0 0 var(--learn); }
+  .btn{ font-size:12px; font-weight:600; padding:6px 12px; border-radius:8px; border:1px solid var(--line); color:var(--text); }
+  .btn:hover{ background:var(--card2); }
+  .btn-brand{ background:linear-gradient(135deg,var(--brand),var(--neon)); border:none; color:#fff; }
+  .btn-brand:hover{ filter:brightness(1.1); }
+  .wpill{ font-family:'JetBrains Mono',monospace; font-size:12px; font-weight:700; padding:6px 14px; border-radius:9px; border:1px solid var(--line); color:var(--muted); cursor:pointer; }
+  .wpill:hover{ background:var(--card2); color:var(--text); }
+  .wpill.active{ background:linear-gradient(135deg,var(--brand),var(--neon)); border-color:transparent; color:#fff; }
+  .done{ opacity:.4; }
+  td,th{ white-space:nowrap; }
+</style>
+</head>
+<body>
+<div class="relative max-w-6xl mx-auto px-5 py-8">
+
+  <!-- Header -->
+  <header class="flex flex-wrap items-end justify-between gap-4 mb-5">
+    <div>
+      <div class="flex items-center gap-2 mb-1">
+        <span class="mono text-[11px] font-bold tracking-[.2em]" style="color:var(--neon)">KINGSGATE · MISSION CONTROL</span>
+      </div>
+      <h1 class="text-[26px] font-extrabold tracking-tight leading-none">Morning Scan</h1>
+      <p class="text-sm mt-1.5" style="color:var(--muted)">Friday 5 June · 6 accounts · 10 ad sets</p>
+    </div>
+    <div class="flex items-center gap-2">
+      <span class="mono text-[11px]" style="color:var(--faint)">synced 06:31 · cron daily 06:30</span>
+      <button class="btn btn-brand" title="POST /api/sync/meta">Sync now</button>
+    </div>
+  </header>
+
+  <!-- Window selector -->
+  <div class="flex flex-wrap items-center gap-2 mb-5">
+    <div id="winPills" class="flex gap-2"></div>
+    <span class="text-[11px]" style="color:var(--faint)">rolling, includes today · flags recompute on the selected window · fatigue is always trailing 3 days</span>
+  </div>
+
+  <!-- Summary strip -->
+  <section class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-3" id="stats"></section>
+  <div class="flex flex-wrap gap-2 mb-7" id="flagCounts"></div>
+
+  <!-- Action queue -->
+  <section class="mb-8">
+    <div class="flex items-baseline justify-between mb-3">
+      <h2 class="text-sm font-bold tracking-wide uppercase" style="color:var(--muted)">Action queue · worst first</h2>
+      <span class="mono text-[11px]" style="color:var(--faint)">flags via killFlag.ts · daily rows from adset_metrics_daily</span>
+    </div>
+    <div id="queue" class="space-y-2.5"></div>
+    <button id="toggleGreens" class="btn mt-3 w-full text-center" style="color:var(--muted)"></button>
+    <div id="greens" class="space-y-2.5 mt-2.5 hidden"></div>
+  </section>
+
+  <!-- Cost & ROAS by client -->
+  <section class="mb-8">
+    <div class="flex items-baseline justify-between mb-3">
+      <h2 class="text-sm font-bold tracking-wide uppercase" style="color:var(--muted)">Cost &amp; ROAS by client · <span id="winLabel2"></span></h2>
+      <span class="mono text-[11px]" style="color:var(--faint)">bookings from GHL opportunities (bookings_daily)</span>
+    </div>
+    <div class="card overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="text-left text-[11px] uppercase tracking-wide" style="color:var(--faint)">
+            <th class="px-4 py-3">Client</th><th class="px-3 py-3">Offer</th><th class="px-3 py-3">Spend</th>
+            <th class="px-3 py-3">Leads</th><th class="px-3 py-3">CPL</th><th class="px-3 py-3">Bookings</th>
+            <th class="px-3 py-3">CPB</th><th class="px-3 py-3">Revenue</th><th class="px-3 py-3">ROAS</th>
+            <th class="px-4 py-3">Pipeline</th>
+          </tr>
+        </thead>
+        <tbody id="clientRows" class="mono"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- Agency economics — Pillar 2.5 (clients ledger, no API) -->
+  <section class="mb-8">
+    <div class="flex items-baseline justify-between mb-3">
+      <h2 class="text-sm font-bold tracking-wide uppercase" style="color:var(--muted)">Agency · retainers &amp; churn</h2>
+      <span class="mono text-[11px]" style="color:var(--faint)">clients ledger (Pillar 2.5) · real figures · June 2026</span>
+    </div>
+    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+      <div class="card px-4 py-3"><div class="text-[10px] uppercase tracking-widest mb-1" style="color:var(--faint)">MRR</div><div class="mono text-xl font-bold">£9,375</div></div>
+      <div class="card px-4 py-3"><div class="text-[10px] uppercase tracking-widest mb-1" style="color:var(--faint)">Avg retainer</div><div class="mono text-xl font-bold">£360.58</div></div>
+      <div class="card px-4 py-3"><div class="text-[10px] uppercase tracking-widest mb-1" style="color:var(--faint)">Active clients</div><div class="mono text-xl font-bold">26</div></div>
+      <div class="card px-4 py-3"><div class="text-[10px] uppercase tracking-widest mb-1" style="color:var(--faint)">Monthly churn</div><div class="mono text-xl font-bold">≈3.6%</div></div>
+      <div class="card px-4 py-3"><div class="text-[10px] uppercase tracking-widest mb-1" style="color:var(--faint)">Since Jan</div><div class="mono text-xl font-bold">11 → 26</div></div>
+      <div class="card px-4 py-3"><div class="text-[10px] uppercase tracking-widest mb-1" style="color:var(--faint)">New via ads</div><div class="mono text-xl font-bold">≈3 in 4</div></div>
+    </div>
+    <p class="text-[11px] mt-2" style="color:var(--faint)">£500 one-time covers the first 50 days → £400/mo rolling, or £1,000 / 3 months in advance (£333/mo effective). 17 of 26 at full £400. Churn computes properly per month (ended ÷ active at month start) once start/end dates are seeded. ⚠️ To confirm: Cotswold listed twice (counted once) and The Carpet Doctor dropped from the latest list — either pushes totals to 27 / £9,775 / £362.04.</p>
+  </section>
+
+  <!-- Today's log -->
+  <section class="mb-10">
+    <h2 class="text-sm font-bold tracking-wide uppercase mb-3" style="color:var(--muted)">Today's log <span class="normal-case font-normal">(actions_log — doubles as the SOP log)</span></h2>
+    <div class="card p-4">
+      <ul id="log" class="space-y-2 text-sm"></ul>
+    </div>
+  </section>
+
+  <p class="text-[12px] leading-relaxed" style="color:var(--faint)">
+    Mockup — numbers are illustrative but every flag is computed live by the same logic as <span class="mono">killFlag.ts</span>,
+    from 30 days of daily rows shaped exactly like <span class="mono">clients</span>, <span class="mono">adset_metrics_daily</span> and
+    <span class="mono">bookings_daily</span>. Window views are pure read-time aggregation — no schema change.
+    Point <span class="mono">dataSources.ts</span> at Supabase and this screen goes live unchanged.
+  </p>
+</div>
+
+<script>
+/* ===== killFlag.ts logic, mirrored ===== */
+const CFG = { assumedCvr:0.40, killMultiple:2, minLeadsForKill:2, fatigueDays:3 };
+const r2 = n => Math.round(n*100)/100;
+const maxCpl = (o,t,cvr)=> o/t*cvr;
+const rising = s => s.length>=2 && s.every((v,i)=> i===0 || (v!==null && s[i-1]!==null && v>s[i-1]));
+
+function evaluate(m){
+  const targetCpl=r2(maxCpl(m.offerValue,m.roasTarget,CFG.assumedCvr));
+  const floorCpl=r2(maxCpl(m.offerValue,5,CFG.assumedCvr));
+  const killCpl=r2(floorCpl*CFG.killMultiple);
+  const cpl=m.leads>0? r2(m.spend/m.leads):null;
+  const fatigue=(m.cplTrend||[]).length>=CFG.fatigueDays && (m.freqTrend||[]).length>=CFG.fatigueDays
+    && rising(m.cplTrend.slice(-CFG.fatigueDays)) && rising(m.freqTrend.slice(-CFG.fatigueDays));
+  const base={targetCpl,floorCpl,killCpl,cpl,fatigue};
+  if(m.leads===0 && m.spend>=killCpl) return {...base,flag:'kill',reason:`£${r2(m.spend)} spent, zero leads (≥ kill line £${killCpl}).`,act:'Kill it. Duplicate a winner or launch fresh, same offer.'};
+  if(m.leads===0) return {...base,flag:'learning',reason:`£${r2(m.spend)} spent, no leads yet (below kill line £${killCpl}).`,act:'Leave running. Re-check next scan.'};
+  let flag,reason,act;
+  if(cpl>=killCpl){
+    if(m.leads<CFG.minLeadsForKill){flag='warn';reason=`CPL £${cpl} over the kill line on ${m.leads} lead — could be noise.`;act=`Hold this scan; another lead above £${killCpl} = kill.`;}
+    else {flag='kill';reason=`CPL £${cpl} ≥ kill line £${killCpl} (2× the 5x max £${floorCpl}).`;act='Kill, then duplicate a winner or launch fresh, same offer.';}
+  } else if(cpl>floorCpl){flag='warn';reason=`CPL £${cpl} above the 5x floor £${floorCpl} — below minimum ROAS.`;act=`Watch today; refresh before it reaches £${killCpl}.`;}
+  else if(cpl>targetCpl){flag='watch';reason=`CPL £${cpl} above target £${targetCpl}, inside the 5x floor £${floorCpl}.`;act='Profitable, under goal. Review tomorrow.';}
+  else {flag='green';reason=`CPL £${cpl} at or under target £${targetCpl}.`;act='Within KPI. No action.';}
+  if(fatigue && (flag==='green'||flag==='watch')) act='CPL fine but fatigue building (CPL + frequency rising 3d) — queue a fresh creative now.';
+  return {...base,flag,reason,act};
+}
+
+/* ===== seeded RNG so the mockup renders identically every load ===== */
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;}}
+
+/* ===== clients (mirrors `clients` table) ===== */
+const clients = [
+  {id:'diamond', name:'Diamond',     offer:120, target:5,  tracks:true,  bookRate:0.45},
+  {id:'mkt',     name:'MKT',         offer:99,  target:7,  tracks:true,  bookRate:0.35},
+  {id:'hifi',    name:'HiFi',        offer:150, target:10, tracks:false, bookRate:0},
+  {id:'proclean',name:'ProClean',    offer:99,  target:5,  tracks:false, bookRate:0},
+  {id:'rsclean', name:'RS Clean',    offer:120, target:7,  tracks:true,  bookRate:0.30},
+  {id:'enviro',  name:'Enviro Clean',offer:150, target:5,  tracks:true,  bookRate:0.40},
+];
+const byId=Object.fromEntries(clients.map(c=>[c.id,c]));
+
+/* ===== ad sets: history params + explicit last 3 days (the stories) =====
+   recent3 = [day-2, day-1, today] of {s:spend, l:leads, f:frequency}        */
+const adsetDefs = [
+  {c:'proclean', name:'3/5 | 3 for £99 — AS1',  seed:11, age:30, spendBase:60, cpl0:8.0,  cpl1:12.0, freq0:1.4, freq1:1.7,
+   recent3:[{s:55,l:5,f:1.6},{s:70,l:5,f:1.9},{s:70,l:4,f:1.8}]},
+  {c:'rsclean',  name:'3/6 | 3 for £120 — AS1', seed:22, age:30, spendBase:22, cpl0:9.0,  cpl1:9.5,  freq0:1.5, freq1:1.6,
+   recent3:[{s:20,l:2,f:1.6},{s:24,l:2,f:1.6},{s:21,l:0,f:1.7}]},
+  {c:'mkt',      name:'3/7 | 3 for £99 — AS1',  seed:33, age:30, spendBase:33, cpl0:5.5,  cpl1:6.2,  freq0:1.3, freq1:1.5,
+   recent3:[{s:31,l:5,f:1.4},{s:35.5,l:5,f:1.5},{s:40,l:5,f:1.5}]},
+  {c:'enviro',   name:'3/9 | 3 for £150 — AS1', seed:44, age:30, spendBase:50, cpl0:8.0,  cpl1:9.0,  freq0:1.6, freq1:1.9,
+   recent3:[{s:45,l:5,f:1.9},{s:52.5,l:5,f:2.2},{s:60,l:5,f:2.6}]},
+  {c:'hifi',     name:'3/8 | 3 for £150 — AS1', seed:55, age:30, spendBase:60, cpl0:8.5,  cpl1:8.5,  freq0:1.6, freq1:1.8,
+   recent3:[{s:59.5,l:7,f:1.7},{s:61.6,l:7,f:1.7},{s:63,l:7,f:1.8}]},
+  {c:'diamond',  name:'3/6 | 3 for £120 — AS1', seed:66, age:30, spendBase:48, cpl0:8.0,  cpl1:8.2,  freq0:1.4, freq1:1.6,
+   recent3:[{s:50.4,l:6,f:1.5},{s:47.4,l:6,f:1.6},{s:48,l:6,f:1.5}]},
+  {c:'diamond',  name:'3/6 | 3 for £120 — AS2', seed:77, age:30, spendBase:34, cpl0:8.8,  cpl1:8.8,  freq0:1.2, freq1:1.4,
+   recent3:[{s:36.4,l:4,f:1.3},{s:34.8,l:4,f:1.4},{s:34,l:4,f:1.4}]},
+  {c:'mkt',      name:'5/6 | 3 for £99 — AS2',  seed:88, age:30, spendBase:18, cpl0:4.8,  cpl1:4.8,  freq0:1.1, freq1:1.2,
+   recent3:[{s:20,l:4,f:1.1},{s:18.8,l:4,f:1.2},{s:18,l:4,f:1.2}]},
+  {c:'hifi',     name:'5/6 | 3 for £150 — AS2', seed:99, age:30, spendBase:28, cpl0:5.2,  cpl1:5.2,  freq0:1.1, freq1:1.3,
+   recent3:[{s:27,l:5,f:1.2},{s:25.5,l:5,f:1.2},{s:30,l:6,f:1.3}]},
+  {c:'enviro',   name:'4/6 | 3 for £150 — AS2 (new)', seed:101, age:2, spendBase:8, cpl0:0, cpl1:0, freq0:1.0, freq1:1.0,
+   recent3:[null,{s:6,l:0,f:1.0},{s:9,l:0,f:1.1}]},
+];
+
+/* build 30 days of daily rows per ad set, oldest -> newest */
+const adsets = adsetDefs.map(d=>{
+  const rnd=mulberry32(d.seed);
+  const series=[];
+  for(let daysAgo=29; daysAgo>=3; daysAgo--){
+    if(daysAgo > d.age-1) continue;                       // ad set didn't exist yet
+    const t=(29-daysAgo)/29;                               // 0 oldest -> 1 newest
+    const cpl=(d.cpl0+(d.cpl1-d.cpl0)*t)*(0.9+rnd()*0.2);
+    const spend=r2(d.spendBase*(0.85+rnd()*0.3));
+    const leads=Math.max(0,Math.round(spend/cpl));
+    const freq=r2(d.freq0+(d.freq1-d.freq0)*t+(rnd()-0.5)*0.08);
+    series.push({spend,leads,freq});
+  }
+  d.recent3.forEach((r,i)=>{ if(r && (2-i) <= d.age-1) series.push({spend:r.s,leads:r.l,freq:r.f}); });
+  return {c:d.c, name:d.name, series, client:byId[d.c]};
+});
+
+/* bookings_daily per tracked client, derived from that day's total leads */
+clients.forEach(c=>{
+  if(!c.tracks){c.book=null;return;}
+  const rnd=mulberry32(c.id.length*97+13);
+  const days=30, arr=[];
+  for(let i=0;i<days;i++){
+    const dayLeads=adsets.filter(a=>a.c===c.id).reduce((s,a)=>{const idx=a.series.length-days+i; return s+(idx>=0?a.series[idx].leads:0);},0);
+    arr.push(Math.max(0,Math.round(dayLeads*c.bookRate*(0.7+rnd()*0.5))));
+  }
+  arr[arr.length-1]={diamond:3,mkt:2,rsclean:0,enviro:2}[c.id]; // today's actuals
+  c.book=arr;
+});
+
+/* ===== windowed aggregation ===== */
+function aggAdset(a,n){
+  const rows=a.series.slice(-n);
+  const spend=r2(rows.reduce((s,x)=>s+x.spend,0));
+  const leads=rows.reduce((s,x)=>s+x.leads,0);
+  const last3=a.series.slice(-3);
+  const cplTrend=last3.map(x=>x.leads>0?r2(x.spend/x.leads):null);
+  const freqTrend=last3.map(x=>x.freq);
+  return {spend,leads,cplTrend,freqTrend};
+}
+function aggClient(c,n){
+  const as=adsets.filter(a=>a.c===c.id);
+  const spend=r2(as.reduce((s,a)=>s+aggAdset(a,n).spend,0));
+  const leads=as.reduce((s,a)=>s+aggAdset(a,n).leads,0);
+  const bk=c.book?c.book.slice(-n).reduce((s,x)=>s+x,0):null;
+  return {spend,leads,bk,rev:bk!==null?bk*c.offer:null};
+}
+
+/* ===== render ===== */
+const WINDOWS=[[1,'Today'],[3,'3d'],[5,'5d'],[7,'7d'],[30,'30d']];
+let win=1;
+const SEV={kill:0,warn:1,watch:2,learning:3,green:4};
+const STYLE={kill:['KILL','c-kill','bar-kill'],warn:['WARN','c-warn','bar-warn'],watch:['WATCH','c-watch','bar-watch'],green:['GREEN','c-green','bar-green'],learning:['LEARNING','c-learn','bar-learning']};
+const gbp = n => '£'+(Math.round(n*100)/100).toLocaleString('en-GB',{minimumFractionDigits:(n%1?2:0)});
+const winLabel = ()=> win===1?'today':`last ${win}d`;
+
+function row(a,agg){
+  const [label,chip,bar]=STYLE[a.res.flag];
+  const fat=a.res.fatigue?`<span class="chip c-fat">⚡ FATIGUE</span>`:'';
+  const cpl=a.res.cpl===null?'—':gbp(a.res.cpl);
+  return `<div class="card ${bar} p-4" data-name="${a.client.name} · ${a.name}">
+    <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
+      <span class="chip ${chip}">${label}</span>${fat}
+      <span class="font-semibold">${a.client.name}</span>
+      <span class="text-sm" style="color:var(--muted)">${a.name}</span>
+      <span class="mono text-sm ml-auto">${winLabel()}: spend ${gbp(agg.spend)} · ${agg.leads} leads · CPL <b>${cpl}</b></span>
+    </div>
+    <div class="mono text-[11px] mt-2" style="color:var(--faint)">target ${gbp(a.res.targetCpl)} · floor ${gbp(a.res.floorCpl)} · kill ${gbp(a.res.killCpl)}</div>
+    <p class="text-[13px] mt-1.5" style="color:var(--muted)">${a.res.reason}</p>
+    <div class="flex flex-wrap items-center gap-3 mt-2">
+      <p class="text-[13px]"><span style="color:var(--faint)">Do:</span> ${a.res.act}</p>
+      ${(a.res.flag!=='green'&&a.res.flag!=='learning')||a.res.fatigue?`<button class="btn markdone ml-auto">Mark done ✓</button>`:''}
+    </div>
+  </div>`;
+}
+
+function render(){
+  /* pills */
+  document.getElementById('winPills').innerHTML=WINDOWS.map(([k,l])=>`<button class="wpill ${k===win?'active':''}" data-w="${k}">${l}</button>`).join('');
+  document.getElementById('winLabel2').textContent=winLabel();
+
+  /* evaluate every ad set on the selected window */
+  const evald=adsets.map(a=>{
+    const agg=aggAdset(a,win);
+    return {...a, agg, res:evaluate({offerValue:a.client.offer, roasTarget:a.client.target, spend:agg.spend, leads:agg.leads, cplTrend:agg.cplTrend, freqTrend:agg.freqTrend})};
+  }).sort((x,y)=>(SEV[x.res.flag]-(x.res.fatigue?0.5:0))-(SEV[y.res.flag]-(y.res.fatigue?0.5:0)));
+
+  /* stats */
+  const spend=r2(evald.reduce((s,a)=>s+a.agg.spend,0)), leads=evald.reduce((s,a)=>s+a.agg.leads,0);
+  const tr=clients.filter(c=>c.tracks).map(c=>aggClient(c,win));
+  const tSpend=r2(tr.reduce((s,c)=>s+c.spend,0)), tBook=tr.reduce((s,c)=>s+c.bk,0), tRev=tr.reduce((s,c)=>s+c.rev,0);
+  const stats=[
+    [`Spend · ${winLabel()}`,gbp(spend)],['Leads',leads],['Blended CPL',leads?gbp(spend/leads):'—'],
+    ['Bookings*',tBook],['Revenue*',gbp(tRev)],['ROAS*',tSpend?(tRev/tSpend).toFixed(1)+'x':'—'],
+  ];
+  document.getElementById('stats').innerHTML=stats.map(([k,v])=>`
+    <div class="card px-4 py-3">
+      <div class="text-[10px] uppercase tracking-widest mb-1" style="color:var(--faint)">${k}</div>
+      <div class="mono text-xl font-bold">${v}</div>
+    </div>`).join('');
+
+  const counts=evald.reduce((m,a)=>{m[a.res.flag]=(m[a.res.flag]||0)+1; if(a.res.fatigue)m.fat=(m.fat||0)+1; return m;},{});
+  document.getElementById('flagCounts').innerHTML=
+    ['kill','warn','watch','green','learning'].filter(f=>counts[f]).map(f=>`<span class="chip ${STYLE[f][1]}">${counts[f]} ${STYLE[f][0]}</span>`).join('')
+    +(counts.fat?`<span class="chip c-fat">⚡ ${counts.fat} FATIGUE</span>`:'')
+    +`<span class="text-[11px] self-center ml-1" style="color:var(--faint)">* tracked clients only — HiFi &amp; ProClean pipelines not updated</span>`;
+
+  /* queue */
+  const hot=evald.filter(a=>a.res.flag==='kill'||a.res.flag==='warn'||a.res.flag==='watch'||a.res.fatigue);
+  const cold=evald.filter(a=>!hot.includes(a));
+  document.getElementById('queue').innerHTML=hot.map(a=>row(a,a.agg)).join('');
+  document.getElementById('greens').innerHTML=cold.map(a=>row(a,a.agg)).join('');
+  const tg=document.getElementById('toggleGreens');
+  const coldLabel=`${cold.filter(a=>a.res.flag==='green').length} green · ${cold.filter(a=>a.res.flag==='learning').length} learning`;
+  const hidden=document.getElementById('greens').classList.contains('hidden');
+  tg.textContent=(hidden?'Show ':'Hide ')+coldLabel+(hidden?' ▾':' ▴');
+  tg.onclick=()=>{const g=document.getElementById('greens');g.classList.toggle('hidden');const h=g.classList.contains('hidden');tg.textContent=(h?'Show ':'Hide ')+coldLabel+(h?' ▾':' ▴');};
+
+  /* client cost table */
+  document.getElementById('clientRows').innerHTML=clients.map(c=>{
+    const a=aggClient(c,win);
+    const roas=a.rev&&a.spend?a.rev/a.spend:null;
+    const roasCol=roas===null?'':roas>=c.target?'color:var(--green)':roas>=5?'color:var(--watch)':'color:var(--warn)';
+    const pipe=c.tracks
+      ?`<span class="chip c-green">GHL ✓</span>`
+      :`<span class="chip c-warn">not updated</span> <a href="#" class="text-[11px] underline" style="color:var(--neon)" title="writes bookings_daily (source='manual')">+ log booking</a>`;
+    return `<tr class="border-t" style="border-color:var(--line)">
+      <td class="px-4 py-2.5 font-sans font-semibold">${c.name}</td>
+      <td class="px-3 py-2.5">£${c.offer} · ${c.target}x</td>
+      <td class="px-3 py-2.5">${gbp(a.spend)}</td>
+      <td class="px-3 py-2.5">${a.leads}</td>
+      <td class="px-3 py-2.5">${a.leads?gbp(a.spend/a.leads):'—'}</td>
+      <td class="px-3 py-2.5">${a.bk!==null?a.bk:'—'}</td>
+      <td class="px-3 py-2.5">${a.bk?gbp(a.spend/a.bk):'—'}</td>
+      <td class="px-3 py-2.5">${a.rev!==null?gbp(a.rev):'—'}</td>
+      <td class="px-3 py-2.5 font-bold" style="${roasCol}">${roas?roas.toFixed(1)+'x':'—'}</td>
+      <td class="px-4 py-2.5">${pipe}</td>
+    </tr>`;
+  }).join('');
+
+  document.querySelectorAll('.wpill').forEach(b=>b.onclick=()=>{win=+b.dataset.w;render();});
+}
+
+/* log (persists across window switches) */
+const log=document.getElementById('log');
+log.innerHTML=`<li class="text-sm" style="color:var(--faint)">Nothing logged yet today — actions land here as you clear the queue.</li>`;
+document.addEventListener('click',e=>{
+  if(e.target.classList.contains('markdone')){
+    const card=e.target.closest('.card');
+    card.classList.add('done'); e.target.disabled=true; e.target.textContent='Done ✓';
+    if(log.firstElementChild && log.firstElementChild.textContent.startsWith('Nothing')) log.innerHTML='';
+    const t=new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+    log.insertAdjacentHTML('afterbegin',
+      `<li class="flex gap-3"><span class="mono text-[11px] mt-0.5" style="color:var(--faint)">${t}</span><span>${card.dataset.name} — actioned <span class="mono text-[11px]" style="color:var(--faint)">(→ actions_log)</span></span></li>`);
+  }
+});
+
+render();
+</script>
+</body>
+</html>
